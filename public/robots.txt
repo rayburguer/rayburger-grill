@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://rayburgergrill.com.ve/sitemap.xml

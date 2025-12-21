@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* GOD-TIER SCROLLBAR */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111827;
+  /* gray-900 */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ea580c;
+  /* orange-600 */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c2410c;
+  /* orange-700 */
+}
+
+/* Base Styles */
+body {
+  background-color: #0c0f16;
+  color: #fff;
+  font-family: 'Montserrat', sans-serif;
+  overflow-x: hidden;
+}
+
+.font-anton {
+  font-family: 'Anton', sans-serif;
+  letter-spacing: 0.05em;
+}
+
+.glass-header {
+  background: rgba(17, 24, 39, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(234, 88, 12, 0.2);
+}
+
+.logo-glow {
+  filter: drop-shadow(0 0 8px rgba(234, 88, 12, 0.5));
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-5px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* ============================================
+   ACCESSIBILITY IMPROVEMENTS - WCAG 2.1 AA
+   ============================================ */
+
+/* Improve contrast for gray text on dark backgrounds */
+.text-gray-400 {
+  color: #d1d5db !important;
+  /* Upgraded from #9ca3af to gray-300 for better contrast */
+}
+
+.text-gray-500 {
+  color: #9ca3af !important;
+  /* Upgraded from #6b7280 to gray-400 for better contrast */
+}
+
+/* Ensure badge backgrounds have sufficient opacity for text readability */
+.bg-orange-500\/10 {
+  background-color: rgba(249, 115, 22, 0.15) !important;
+  /* Increased from 0.1 to 0.15 */
+}
+
+.bg-orange-500\/20 {
+  background-color: rgba(249, 115, 22, 0.25) !important;
+  /* Increased from 0.2 to 0.25 */
+}
+
+/* Improve focus indicators for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid #f97316 !important;
+  outline-offset: 2px !important;
+}
+
+/* Better contrast for disabled states */
+button:disabled,
+input:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+
+/* Ensure links are distinguishable */
+a:not(.no-underline) {
+  text-decoration-color: rgba(249, 115, 22, 0.5);
+  text-underline-offset: 2px;
+}
+
+a:hover:not(.no-underline) {
+  text-decoration-color: #f97316;
+}

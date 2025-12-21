@@ -1,0 +1,16 @@
+{
+    "short_name": "RayBurger",
+    "name": "Ray Burger Grill - Premium",
+    "icons": [
+        {
+            "src": "logo.jpg",
+            "sizes": "512x512",
+            "type": "image/jpeg",
+            "purpose": "any maskable"
+        }
+    ],
+    "start_url": ".",
+    "display": "standalone",
+    "theme_color": "#111827",
+    "background_color": "#111827"
+}
