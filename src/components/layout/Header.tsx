@@ -1,4 +1,4 @@
-import { ShoppingCart, LogIn, LogOut, UserCircle, Clock, CheckCircle } from 'lucide-react';
+import { ShoppingCart, LogIn, LogOut, UserCircle, Clock, CheckCircle, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Order } from '../../types';
 
@@ -11,6 +11,7 @@ interface HeaderProps {
     onLogout: () => void;
     onOpenProfile: () => void;
     onOpenAdmin?: () => void;
+    onOpenLeaderboard?: () => void;
     activeOrder?: Order | null;
 }
 
@@ -21,8 +22,8 @@ const Header: React.FC<HeaderProps> = ({
     onOpenRegister,
     onOpenLogin,
     onLogout,
-    onOpenProfile,
     onOpenAdmin,
+    onOpenLeaderboard,
     activeOrder
 }) => {
     const baseButtonClasses = "group px-5 py-2 rounded-xl text-sm font-bold transition-all duration-300 transform hover:scale-105 flex items-center justify-center whitespace-nowrap active:scale-95";
@@ -55,6 +56,15 @@ const Header: React.FC<HeaderProps> = ({
                 </div>
             </motion.div>
             <nav className="flex items-center space-x-2 md:space-x-3">
+                <button
+                    className={`${secondaryButtonClasses} hidden md:flex !bg-gray-800/80 !border-orange-500/20`}
+                    title="Ver La Carrera"
+                    onClick={onOpenLeaderboard}
+                >
+                    <Trophy className="w-5 h-5 md:mr-1 text-orange-500" />
+                    <span className="sr-only md:not-sr-only">La Carrera</span>
+                </button>
+
                 {currentUser ? (
                     <div className="flex items-center space-x-2">
                         <AnimatePresence>

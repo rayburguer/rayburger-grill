@@ -17,9 +17,10 @@ interface CartModalProps {
 }
 
 const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, totalUsd, onRemoveItem, onUpdateItemQuantity, onProceedToCheckout, allProducts, onQuickAdd }) => {
-    // Get upsell items (Extras that are NOT in the cart yet)
+    // Get upsell items (Extras/Drinks/Sauces that are NOT in the cart yet)
     const upsellItems = allProducts
-        .filter(p => p.category === 'Extras' && !cart.some(item => item.id === p.id))
+        .filter(p => ['Extras', 'Bebidas', 'Salsas'].includes(p.category) && !cart.some(item => item.id === p.id))
+        .sort(() => 0.5 - Math.random()) // Shuffle for variety
         .slice(0, 3); // Show max 3
 
     return (

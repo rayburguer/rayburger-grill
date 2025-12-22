@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rayburger-cache-v2'; // INCREMENTED VERSION
+const CACHE_NAME = 'rayburger-cache-v3'; // INCREMENTED VERSION AGAIN
 const urlsToCache = [
     '/',
     '/index.html',
@@ -32,10 +32,17 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-    // Strategy: Network first for HTML, Cache first for others
+    // Strategy: Network-First for HTML/Navigation, Cache-First for static assets
     if (event.request.mode === 'navigate') {
         event.respondWith(
-            fetch(event.request).catch(() => caches.match(event.request))
+            fetch(event.request)
+                .then(response => {
+                    // Update cache with the fresh HTML
+                    const copy = response.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+                    return response;
+                })
+                .catch(() => caches.match(event.request))
         );
     } else {
         event.respondWith(

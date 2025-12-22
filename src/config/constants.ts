@@ -2,7 +2,7 @@ export const INSTAGRAM_URL = "https://www.instagram.com/rayburguergrill";
 export const FACEBOOK_URL = "https://www.facebook.com/rayburguergrill";
 export const WHATSAPP_NUMBER = "584128344594";
 export const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
-export const IMAGE_PLACEHOLDER = "https://via.placeholder.com/400x300.png?text=RayburgerGrill";
+export const IMAGE_PLACEHOLDER = "https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=400&h=300&fit=crop";
 
 export const RAYBURGERGRILL_LOGO_BASE64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJvcmFuZ2UiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1mbGFtZSI+PHBhdGggZD0iTTguNSAxNC41QTIuNSAyLjUgMCAwIDAgMTEgMTJjMC0xLjM4LS41LTItMS0zLTEuMDcyLTIuMTI2LTEuNS0zLjg3NC0xLjUtNkEyLjUgMi41IDAgMCAwIDkgMWMwIDIuMTI2LjQzIDMsMDcyIDEuNSA2IDAgLjc0OC41IDEgMS41IDJoLjVBMi41IDIyNSAwIDAgMSAxNiAxNC41YzAgMS45My0xLjg5NiAyLTMuNSAyLTEuNjE1IDAtMyAxLjUtMyAyLjVzMS43NzQgMi41IDMgMi41YzEuMTU3IDAgMy41LTEuNSAzLjUtNC41aDJjMCA0LjEtMy41IDYtNi41IDZjLTMuMDg1IDAtNS41LTItNS51LTRsMC01Yy41LTYuNzUgMy41LTEwIDYuNS0xMCIvPjwvc3ZnPg==";
 

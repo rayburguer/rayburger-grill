@@ -303,6 +303,7 @@ const App: React.FC = () => {
                 onLogout={handleLogout}
                 onOpenProfile={openUserProfileModal}
                 onOpenAdmin={openAdminDashboard}
+                onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
                 activeOrder={activeOrder}
             />
 
