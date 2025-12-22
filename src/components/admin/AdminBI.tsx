@@ -3,11 +3,11 @@ import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     BarChart, Bar, Cell, PieChart, Pie, Legend
 } from 'recharts';
-import { TrendingUp, ShoppingBag, Truck, Users } from 'lucide-react';
+import { TrendingUp, ShoppingBag, Truck } from 'lucide-react';
 import { Order } from '../../types';
 
 interface AdminBIProps {
-    orders: any[]; // Combined orders with extra fields
+    orders: (Order & { userEmail: string; userName: string; isGuest: boolean })[];
 }
 
 export const AdminBI: React.FC<AdminBIProps> = ({ orders }) => {
@@ -91,7 +91,7 @@ export const AdminBI: React.FC<AdminBIProps> = ({ orders }) => {
                         </div>
                         <div>
                             <p className="text-gray-400 text-sm">Crecimiento</p>
-                            <h4 className="text-2xl font-black text-white">+12.5%</h4>
+                            <h4 className="text-2xl font-black text-white">Saludable</h4>
                         </div>
                     </div>
                 </div>
@@ -134,7 +134,7 @@ export const AdminBI: React.FC<AdminBIProps> = ({ orders }) => {
                                     contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '12px' }}
                                 />
                                 <Bar dataKey="value" radius={[0, 10, 10, 0]}>
-                                    {stats.productData.map((entry, index) => (
+                                    {stats.productData.map((_, index) => (
                                         <Cell key={`cell-${index}`} fill={index === 0 ? '#f97316' : '#6366f1'} />
                                     ))}
                                 </Bar>

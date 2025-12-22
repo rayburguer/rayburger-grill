@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { User, Product, Order } from '../types';
+import { User, Order } from '../types';
 
 export const useCloudSync = () => {
     const [isSyncing, setIsSyncing] = useState(false);
@@ -58,7 +58,7 @@ export const useCloudSync = () => {
         const localUsers = localStorage.getItem('rayburger_registered_users');
         if (localUsers) {
             try {
-                const users = JSON.parse(localUsers).map((u: User) => ({
+                const users = (JSON.parse(localUsers) as any[]).map((u: User) => ({
                     ...u,
                     id: u.email // Supabase primary key mapping
                 }));
@@ -85,7 +85,7 @@ export const useCloudSync = () => {
         const localGuestOrders = localStorage.getItem('rayburger_guest_orders');
         if (localGuestOrders) {
             try {
-                const orders = JSON.parse(localGuestOrders).map((o: Order) => ({
+                const orders = (JSON.parse(localGuestOrders) as any[]).map((o: Order) => ({
                     ...o,
                     id: o.orderId // Map orderId to id for Supabase
                 }));

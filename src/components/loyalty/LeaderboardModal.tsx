@@ -32,39 +32,61 @@ const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onClose, us
                 <h3 className="text-2xl font-anton text-white uppercase tracking-wider">¡El Top 3 gana premios cada semana!</h3>
             </div>
 
-            <div className="space-y-3 mb-6">
-                {topUsers.length === 0 ? (
-                    <p className="text-center text-gray-500 py-10">¡Aún no hay corredores en la pista! Sé el primero en comprar.</p>
-                ) : (
-                    topUsers.map((user, index) => (
-                        <motion.div
-                            key={user.email}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                            className={`flex items-center justify-between p-4 rounded-xl border transition-all ${index === 0
-                                ? 'bg-yellow-500/10 border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.1)]'
-                                : 'bg-gray-800/50 border-gray-700/50'
-                                }`}
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className="flex-shrink-0">
-                                    {getRankIcon(index)}
+            <div className="relative">
+                <div className="space-y-3 mb-6">
+                    {topUsers.length === 0 ? (
+                        <p className="text-center text-gray-500 py-10">¡Aún no hay corredores en la pista! Sé el primero en comprar.</p>
+                    ) : (
+                        topUsers.map((user, index) => (
+                            <motion.div
+                                key={user.email}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: index * 0.1 }}
+                                className={`flex items-center justify-between p-4 rounded-xl border transition-all ${index === 0
+                                    ? 'bg-yellow-500/10 border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.1)]'
+                                    : 'bg-gray-800/50 border-gray-700/50'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="flex-shrink-0">
+                                        {getRankIcon(index)}
+                                    </div>
+                                    <div>
+                                        <p className={`font-bold ${index === 0 ? 'text-yellow-500 text-lg' : 'text-white'}`}>
+                                            {user.name.split(' ')[0]}
+                                            {index === 0 && <span className="ml-2 text-[10px] uppercase tracking-tighter bg-yellow-500 text-black px-1 rounded">Rey del Grill</span>}
+                                        </p>
+                                        <p className="text-xs text-gray-400 uppercase tracking-widest">{user.loyaltyTier}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className={`font-bold ${index === 0 ? 'text-yellow-500 text-lg' : 'text-white'}`}>
-                                        {user.name.split(' ')[0]}
-                                        {index === 0 && <span className="ml-2 text-[10px] uppercase tracking-tighter bg-yellow-500 text-black px-1 rounded">Rey del Grill</span>}
-                                    </p>
-                                    <p className="text-xs text-gray-400 uppercase tracking-widest">{user.loyaltyTier}</p>
+                                <div className="text-right">
+                                    <p className="font-anton text-xl text-orange-500">{user.points}</p>
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold">Puntos</p>
                                 </div>
-                            </div>
-                            <div className="text-right">
-                                <p className="font-anton text-xl text-orange-500">{user.points}</p>
-                                <p className="text-[10px] text-gray-500 uppercase font-bold">Puntos</p>
-                            </div>
-                        </motion.div>
-                    ))
+                            </motion.div>
+                        ))
+                    )}
+                </div>
+
+                {/* COMING SOON OVERLAY - UNLOCKS AT 100 USERS */}
+                {users.length < 100 && (
+                    <div className="absolute inset-x-0 -inset-y-4 z-20 bg-gray-900/60 backdrop-blur-md flex flex-col items-center justify-center rounded-2xl border border-orange-500/20 p-6 text-center">
+                        <div className="w-16 h-16 bg-orange-600/20 rounded-full flex items-center justify-center mb-4 border border-orange-500/50 animate-pulse">
+                            <Trophy className="text-orange-500 w-8 h-8" />
+                        </div>
+                        <h4 className="text-2xl font-anton text-white uppercase mb-2 tracking-widest">¡Próximamente!</h4>
+                        <p className="text-gray-300 text-sm max-w-xs">
+                            La Carrera se desbloqueará cuando lleguemos a los <span className="text-orange-500 font-bold">100 usuarios</span> registrados.
+                        </p>
+                        <div className="mt-6 w-full max-w-[200px] h-2 bg-gray-800 rounded-full overflow-hidden border border-gray-700">
+                            <div
+                                className="h-full bg-orange-600 transition-all duration-1000"
+                                style={{ width: `${Math.min(100, (users.length / 100) * 100)}%` }}
+                            ></div>
+                        </div>
+                        <p className="mt-2 text-[10px] text-gray-500 uppercase font-black">{users.length} / 100 USUARIOS</p>
+                    </div>
                 )}
             </div>
 

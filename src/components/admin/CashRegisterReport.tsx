@@ -3,7 +3,7 @@ import { DollarSign, Calendar, Download, TrendingUp } from 'lucide-react';
 import { Order } from '../../types';
 
 interface CashRegisterReportProps {
-    orders: Order[];
+    orders: (Order & { userName?: string })[];
     tasaBs: number;
 }
 
@@ -69,8 +69,8 @@ export const CashRegisterReport: React.FC<CashRegisterReportProps> = ({ orders, 
                     <button
                         onClick={() => setDateRange('today')}
                         className={`px-4 py-3 rounded-xl font-bold transition-all ${dateRange === 'today'
-                                ? 'bg-orange-600 text-white'
-                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                             }`}
                     >
                         📅 Hoy
@@ -78,8 +78,8 @@ export const CashRegisterReport: React.FC<CashRegisterReportProps> = ({ orders, 
                     <button
                         onClick={() => setDateRange('yesterday')}
                         className={`px-4 py-3 rounded-xl font-bold transition-all ${dateRange === 'yesterday'
-                                ? 'bg-orange-600 text-white'
-                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                             }`}
                     >
                         📆 Ayer
@@ -135,7 +135,7 @@ export const CashRegisterReport: React.FC<CashRegisterReportProps> = ({ orders, 
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-800">
-                                    {approvedOrders.map((order, idx) => (
+                                    {approvedOrders.map((order) => (
                                         <tr key={order.orderId} className="hover:bg-gray-800/50">
                                             <td className="px-4 py-3 text-sm text-gray-400">
                                                 {new Date(order.timestamp).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}
@@ -145,8 +145,8 @@ export const CashRegisterReport: React.FC<CashRegisterReportProps> = ({ orders, 
                                             </td>
                                             <td className="px-4 py-3 text-sm">
                                                 <span className={`px-2 py-1 rounded-full text-xs font-bold ${order.deliveryMethod === 'delivery'
-                                                        ? 'bg-blue-900/50 text-blue-400'
-                                                        : 'bg-green-900/50 text-green-400'
+                                                    ? 'bg-blue-900/50 text-blue-400'
+                                                    : 'bg-green-900/50 text-green-400'
                                                     }`}>
                                                     {order.deliveryMethod === 'delivery' ? '🛵 Delivery' : '🏪 Pickup'}
                                                 </span>

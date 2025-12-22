@@ -101,7 +101,7 @@ const RecommendationSection: React.FC<RecommendationSectionProps> = ({ onShowToa
     }, [selectedMood, handleMoodSelect]);
 
     // Initial random recommendations on mount
-    useMemo(() => {
+    useEffect(() => {
         if (allProducts.length > 0 && recommendations.length === 0) {
             const availableProducts = allProducts.filter(p => p.isAvailable !== false);
             setRecommendations(shuffleArray(availableProducts).slice(0, 3));

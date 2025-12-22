@@ -43,7 +43,6 @@ export const useProducts = () => {
                         .select('*');
 
                     if (!error && data && data.length > 0) {
-                        console.log('☁️ Productos actualizados desde la nube:', data.length);
                         // Merge or replace? For simplicity and consistency: Replace.
                         // Ideally we should merge if user has local pending changes, but for clients, Cloud is Truth.
                         setProducts(data as Product[]);
@@ -51,7 +50,7 @@ export const useProducts = () => {
                     }
                 }
             } catch (err) {
-                console.warn('⚠️ No se pudo conectar a la nube, usando datos locales.');
+                // Silent fail if cloud is unreachable
             }
         };
 
@@ -61,6 +60,9 @@ export const useProducts = () => {
     useEffect(() => {
         const handleStorageChange = (e: Event) => {
             const customEvent = e as CustomEvent;
+            // IGNORE if the update came from THIS hook instance
+            if (customEvent.detail?.source === 'useProducts') return;
+
             if (customEvent.type === 'rayburger_products_updated') {
                 const storedProducts = safeLocalStorage.getItem('rayburger_products');
                 if (storedProducts) {
@@ -80,7 +82,8 @@ export const useProducts = () => {
     const saveProducts = useCallback((newProducts: Product[]) => {
         setProducts(newProducts);
         saveProductsDebounced(newProducts);
-        window.dispatchEvent(new Event('rayburger_products_updated'));
+        // Add a flag to indicate this update is internal
+        window.dispatchEvent(new CustomEvent('rayburger_products_updated', { detail: { source: 'useProducts' } }));
     }, [saveProductsDebounced]);
 
     const addProduct = useCallback((product: Product) => {

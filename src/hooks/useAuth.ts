@@ -2,13 +2,16 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { User } from '../types';
 import { calculateLoyaltyTier } from '../utils/helpers';
 import { debounce, safeLocalStorage } from '../utils/debounce';
+import { hashPassword, isLegacyPassword } from '../utils/security';
 
 export const useAuth = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
 
-    // Ref to track if we're in the middle of an update to prevent circular updates
+    // Flag to prevent recursive updates between sync cycles
     const isUpdatingRef = useRef(false);
+    const syncAttemptsRef = useRef(0);
+    const lastSyncTimeRef = useRef(Date.now());
 
     // Debounced localStorage save functions
     const saveUsersDebounced = useRef(
@@ -66,16 +69,16 @@ export const useAuth = () => {
         } catch (error) {
             console.error("Critical error loading data from localStorage:", error);
         }
-    }, []); // Empty dependency array - only run once on mount
+    }, []);
 
-    // Save registeredUsers to localStorage with debouncing
+    // Save registeredUsers to localStorage
     useEffect(() => {
         if (registeredUsers.length > 0) {
             saveUsersDebounced(registeredUsers);
         }
     }, [registeredUsers, saveUsersDebounced]);
 
-    // Sync currentUser with registeredUsers - OPTIMIZED to prevent infinite loops
+    // Sync currentUser with registeredUsers
     useEffect(() => {
         if (isUpdatingRef.current || !currentUser || !Array.isArray(registeredUsers)) {
             return;
@@ -83,32 +86,97 @@ export const useAuth = () => {
 
         const updatedUserInList = registeredUsers.find(u => u.email === currentUser.email);
         if (updatedUserInList) {
-            // Only update if there are actual changes
-            const hasChanges =
-                updatedUserInList.points !== currentUser.points ||
-                updatedUserInList.loyaltyTier !== currentUser.loyaltyTier ||
-                updatedUserInList.orders?.length !== currentUser.orders?.length ||
-                updatedUserInList.referralCode !== currentUser.referralCode;
+            const currentStr = JSON.stringify(currentUser);
+            const updatedStr = JSON.stringify(updatedUserInList);
 
-            if (hasChanges) {
-                isUpdatingRef.current = true;
-                setCurrentUser(updatedUserInList);
-                saveCurrentUserDebounced(updatedUserInList);
-                // Reset flag after state update completes
-                setTimeout(() => {
-                    isUpdatingRef.current = false;
-                }, 0);
+            if (currentStr !== updatedStr) {
+                const hasCriticalChanges =
+                    updatedUserInList.points !== currentUser.points ||
+                    updatedUserInList.loyaltyTier !== currentUser.loyaltyTier ||
+                    updatedUserInList.orders?.length !== currentUser.orders?.length ||
+                    updatedUserInList.passwordHash !== currentUser.passwordHash;
+
+                if (hasCriticalChanges) {
+                    isUpdatingRef.current = true;
+                    setCurrentUser(updatedUserInList);
+                    saveCurrentUserDebounced(updatedUserInList);
+                    setTimeout(() => { isUpdatingRef.current = false; }, 100);
+                }
             }
         }
-    }, [registeredUsers]); // Removed currentUser from dependencies to break circular loop
+    }, [registeredUsers, currentUser, saveCurrentUserDebounced]);
 
-    const login = useCallback((identifier: string, password: string) => {
-        const user = registeredUsers.find(u =>
-            (u.email === identifier || u.phone === identifier) && u.passwordHash === password
-        );
-        if (user) {
-            setCurrentUser(user);
-            saveCurrentUserDebounced(user);
+    // Sync with other tabs/instances via storage events
+    useEffect(() => {
+        const syncUsersWithLocalStorage = () => {
+            if (isUpdatingRef.current) return;
+
+            const now = Date.now();
+            if (now - lastSyncTimeRef.current < 500) {
+                syncAttemptsRef.current++;
+                if (syncAttemptsRef.current > 5) {
+                    console.error("🛑 Sync loop detected. Interventing.");
+                    return;
+                }
+            } else {
+                syncAttemptsRef.current = 0;
+            }
+            lastSyncTimeRef.current = now;
+
+            const storedUsersString = safeLocalStorage.getItem('rayburger_registered_users');
+            if (storedUsersString) {
+                try {
+                    const storedUsers = JSON.parse(storedUsersString) as User[];
+                    const getQuickHash = (list: User[]) => list.length + list.reduce((acc, u) => acc + (u.points || 0), 0);
+
+                    if (getQuickHash(storedUsers) !== getQuickHash(registeredUsers)) {
+                        isUpdatingRef.current = true;
+                        setRegisteredUsers(storedUsers);
+                        setTimeout(() => { isUpdatingRef.current = false; }, 200);
+                    }
+                } catch (e) {
+                    console.error("Failed to sync users", e);
+                }
+            }
+        };
+
+        window.addEventListener('storage', syncUsersWithLocalStorage);
+        window.addEventListener('rayburger_users_updated', syncUsersWithLocalStorage);
+
+        return () => {
+            window.removeEventListener('storage', syncUsersWithLocalStorage);
+            window.removeEventListener('rayburger_users_updated', syncUsersWithLocalStorage);
+        };
+    }, [registeredUsers]);
+
+    const login = useCallback(async (identifier: string, password: string) => {
+        const inputHash = await hashPassword(password);
+        let userIndex = registeredUsers.findIndex(u => (u.email === identifier || u.phone === identifier));
+
+        if (userIndex === -1) return false;
+
+        const user = registeredUsers[userIndex];
+        let isAuthenticated = false;
+        let needsMigration = false;
+
+        if (user.passwordHash === inputHash) {
+            isAuthenticated = true;
+        } else if (isLegacyPassword(user.passwordHash) && user.passwordHash === password) {
+            isAuthenticated = true;
+            needsMigration = true;
+        }
+
+        if (isAuthenticated) {
+            let userToLogin = user;
+            if (needsMigration) {
+                const updatedUser = { ...user, passwordHash: inputHash };
+                const newUsersList = [...registeredUsers];
+                newUsersList[userIndex] = updatedUser;
+                setRegisteredUsers(newUsersList);
+                userToLogin = updatedUser;
+            }
+            setCurrentUser(userToLogin);
+            saveCurrentUserDebounced(userToLogin);
             return true;
         }
         return false;
@@ -119,38 +187,31 @@ export const useAuth = () => {
         safeLocalStorage.removeItem('rayburger_current_user');
     }, []);
 
-    const register = useCallback((newUserInput: User) => {
-        // 1. Enforce uniqueness for Phone
-        if (registeredUsers.some(u => u.phone === newUserInput.phone)) {
-            console.warn("User with this phone already exists");
+    const register = useCallback(async (newUserInput: User) => {
+        if (registeredUsers.some(u => u.phone === newUserInput.phone || u.email === newUserInput.email)) {
+            console.warn("User already exists");
             return false;
         }
 
+        const passwordHash = await hashPassword(newUserInput.passwordHash);
         const newUser: User = {
-            ...newUserInput, // Spread input properties
-            points: 50, // WELCOME BONUS
-            lastPointsUpdate: Date.now(), // Iniciamos contador
+            ...newUserInput,
+            passwordHash,
+            points: 50,
+            lastPointsUpdate: Date.now(),
             loyaltyTier: calculateLoyaltyTier(50)
         };
 
-        // Anti-Fraud check blocks
         if (newUser.referredByCode) {
-            // Check if referral code exists
             const referrer = registeredUsers.find(u => u.referralCode === newUser.referredByCode);
-            if (!referrer) {
-                console.warn("Invalid referral code");
-                return false;
-            }
-
-            // Block if trying to use own code (shouldn't happen, but extra safety)
-            if (newUser.referralCode === newUser.referredByCode) {
-                console.warn("Cannot use your own referral code");
+            if (!referrer || newUser.referralCode === newUser.referredByCode) {
+                console.warn("Invalid referral");
                 return false;
             }
         }
 
         setRegisteredUsers(prevUsers => [...prevUsers, newUser]);
-        setCurrentUser(newUser); // Auto-login
+        setCurrentUser(newUser);
         saveCurrentUserDebounced(newUser);
         return true;
     }, [registeredUsers, saveCurrentUserDebounced]);

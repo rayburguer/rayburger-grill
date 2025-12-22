@@ -10,7 +10,8 @@ interface HeaderProps {
     onOpenLogin: () => void;
     onLogout: () => void;
     onOpenProfile: () => void;
-    activeOrder?: Order | null; // NEW
+    onOpenAdmin?: () => void;
+    activeOrder?: Order | null;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -21,6 +22,7 @@ const Header: React.FC<HeaderProps> = ({
     onOpenLogin,
     onLogout,
     onOpenProfile,
+    onOpenAdmin,
     activeOrder
 }) => {
     const baseButtonClasses = "group px-5 py-2 rounded-xl text-sm font-bold transition-all duration-300 transform hover:scale-105 flex items-center justify-center whitespace-nowrap active:scale-95";
@@ -45,7 +47,6 @@ const Header: React.FC<HeaderProps> = ({
                         className="h-10 w-10 md:h-12 md:w-12 object-cover rounded-full border-2 border-orange-500/50 p-0.5 relative z-10 animate-float"
                     />
                 </div>
-                {/* Hide Text on Mobile */}
                 <div className="hidden md:flex flex-col">
                     <h1 className="font-anton text-2xl lg:text-3xl bg-gradient-to-r from-white via-orange-500 to-orange-700 bg-clip-text text-transparent uppercase leading-none tracking-tighter">
                         Ray Burger
@@ -56,7 +57,6 @@ const Header: React.FC<HeaderProps> = ({
             <nav className="flex items-center space-x-2 md:space-x-3">
                 {currentUser ? (
                     <div className="flex items-center space-x-2">
-                        {/* ACTIVE ORDER INDICATOR */}
                         <AnimatePresence>
                             {activeOrder && (
                                 <motion.button
@@ -86,6 +86,17 @@ const Header: React.FC<HeaderProps> = ({
                                 <span className="sr-only">Perfil de </span>Hola, {currentUser.name.split(' ')[0]}
                             </div>
                         </button>
+
+                        {currentUser.role === 'admin' && onOpenAdmin && (
+                            <button
+                                className={`${primaryButtonClasses} px-2 md:px-5 border-orange-400`}
+                                onClick={onOpenAdmin}
+                            >
+                                <CheckCircle className="w-5 h-5 md:mr-1" />
+                                <span className="hidden md:inline">Panel Admin</span>
+                            </button>
+                        )}
+
                         <button
                             className={`${dangerButtonClasses} px-2 md:px-5`}
                             aria-label="Cerrar sesión"
@@ -97,7 +108,6 @@ const Header: React.FC<HeaderProps> = ({
                     </div>
                 ) : (
                     <>
-                        {/* Mobile Optimized Buttons: Icons only on small screens */}
                         <button
                             className={`${primaryButtonClasses} px-3 md:px-5`}
                             aria-label="Iniciar sesión"

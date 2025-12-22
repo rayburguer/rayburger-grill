@@ -15,6 +15,7 @@ export interface Product {
     price_usd: number;
     defaultIncluded: boolean;
   }[];
+  highlight?: string; // NEW: e.g. "NEW", "TOP"
 }
 
 export interface Suggestion {
@@ -36,7 +37,12 @@ export interface Order {
   orderId: string;
   timestamp: number;
   totalUsd: number;
-  items: { name: string; quantity: number; price_usd: number; }[];
+  items: {
+    name: string;
+    quantity: number;
+    price_usd: number;
+    selectedOptions?: { [optionId: string]: boolean };
+  }[];
   pointsEarned: number;
   referrerPointsEarned?: number;
   level2ReferrerPointsEarned?: number;
@@ -91,4 +97,3 @@ export interface Survey {
   };
   comments: string;
 }
-

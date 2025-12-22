@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Order } from '../../types';
+import { User, Order, Product } from '../../types';
 // import { useAuth } from '../../hooks/useAuth'; // REMOVED
 import { useLoyalty } from '../../hooks/useLoyalty';
 import { Search } from 'lucide-react';
@@ -9,8 +9,8 @@ interface OrderManagementProps {
     updateUsers: (users: User[]) => void;
     guestOrders: Order[];
     updateGuestOrders: (updatedOrders: Order[]) => void;
-    products: any[];
-    updateProduct: (p: any) => void;
+    products: Product[];
+    updateProduct: (p: Product) => void;
 }
 
 export const OrderManagement: React.FC<OrderManagementProps> = ({
@@ -20,7 +20,17 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState<'pending' | 'preparing' | 'shipped' | 'approved' | 'rejected' | 'all'>('pending');
 
-    const deductStock = (orderItems: any[]) => {
+    const restoreStock = (orderItems: { name: string; quantity: number }[]) => {
+        orderItems.forEach(item => {
+            const product = products.find(p => p.name === item.name);
+            if (product && product.stockQuantity !== undefined) {
+                const newStock = product.stockQuantity + item.quantity;
+                updateProduct({ ...product, stockQuantity: newStock });
+            }
+        });
+    };
+
+    const deductStock = (orderItems: { name: string; quantity: number }[]) => {
         orderItems.forEach(item => {
             const product = products.find(p => p.name === item.name);
             if (product && product.stockQuantity !== undefined) {
@@ -63,7 +73,13 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     };
 
     const handleReject = (orderId: string, userEmail: string, isGuest: boolean) => {
+        const orderToReject = allOrders.find(o => o.orderId === orderId);
         if (confirm(`¿Rechazar pedido de ${userEmail}?`)) {
+            // Restore stock if it was already deducted (preparing or shipped)
+            if (orderToReject && (orderToReject.status === 'preparing' || orderToReject.status === 'shipped')) {
+                restoreStock(orderToReject.items);
+            }
+
             if (isGuest) {
                 const updated = guestOrders.map(o => o.orderId === orderId ? { ...o, status: 'rejected' as const } : o);
                 updateGuestOrders(updated);
@@ -214,22 +230,14 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                                         </button>
                                     )}
 
-                                    {/* Legacy Quick Approve for transition */}
+                                    {/* Quick Approve for transition */}
                                     {(!order.status || order.status === 'pending') && (
-                                        <>
-                                            <button
-                                                onClick={() => handleApprove(order.orderId, order.userEmail, !!order.isGuest)}
-                                                className="px-4 py-2 bg-green-600/20 text-green-500 hover:bg-green-600/40 rounded transition-colors text-xs font-bold border border-green-600/30"
-                                            >
-                                                ⚡ Cobro Rápido
-                                            </button>
-                                            <button
-                                                onClick={() => handleApprove(order.orderId, order.userEmail, !!order.isGuest)}
-                                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-bold"
-                                            >
-                                                Aprobación Directa
-                                            </button>
-                                        </>
+                                        <button
+                                            onClick={() => handleApprove(order.orderId, order.userEmail, !!order.isGuest)}
+                                            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-bold"
+                                        >
+                                            Aprobación Directa
+                                        </button>
                                     )}
                                 </div>
                             )}

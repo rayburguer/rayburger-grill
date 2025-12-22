@@ -40,9 +40,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [redeemAmount, setRedeemAmount] = useState<number>(0);
 
     const allOrders = [
-        ...registeredUsers.flatMap(u => (u.orders || []).map(o => ({ ...o, userEmail: u.email, userName: u.name }))),
-        ...guestOrders.map(o => ({ ...o, userEmail: 'Invitado', userName: o.customerName || 'Invitado' }))
-    ];
+        ...registeredUsers.flatMap(u => (u.orders || []).map(o => ({ ...o, userEmail: u.email, userName: u.name, isGuest: false }))),
+        ...guestOrders.map(o => ({ ...o, userEmail: 'Invitado', userName: o.customerName || 'Invitado', isGuest: true }))
+    ].sort((a, b) => b.timestamp - a.timestamp);
 
     const surveyStats = getStats();
     const [isEditing, setIsEditing] = useState(false);
@@ -572,8 +572,8 @@ const CloudSyncSection: React.FC = () => {
                         else setStatus('success');
                     }}
                     disabled={isSyncing}
-                    className={`w - full py - 4 rounded - xl font - black text - lg uppercase transition - all flex items - center justify - center gap - 3
-                        ${isSyncing ? 'bg-gray-700' : status === 'success' ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'} `}
+                    className={`w-full py-4 rounded-xl font-black text-lg uppercase transition-all flex items-center justify-center gap-3
+                        ${isSyncing ? 'bg-gray-700' : status === 'success' ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'}`}
                 >
                     {isSyncing ? <><RefreshCw className="animate-spin" /> Sincronizando...</> : status === 'success' ? <><CheckCircle2 /> ¡Protegido!</> : 'Iniciar Migración Cloud'}
                 </button>

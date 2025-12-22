@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plus, Minus, X } from 'lucide-react';
 import Modal from '../ui/Modal';
-import { CartItem } from '../../types';
+import { CartItem, Product } from '../../types';
 import { IMAGE_PLACEHOLDER } from '../../config/constants';
 
 interface CartModalProps {
@@ -12,8 +12,8 @@ interface CartModalProps {
     onRemoveItem: (cartItemId: string) => void;
     onUpdateItemQuantity: (cartItemId: string, quantity: number) => void;
     onProceedToCheckout: () => void;
-    allProducts: any[]; // NEW: To find upsell items
-    onQuickAdd: (product: any) => void; // NEW: For quick add from upsell
+    allProducts: Product[]; // NEW: To find upsell items
+    onQuickAdd: (product: Product) => void; // NEW: For quick add from upsell
 }
 
 const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, totalUsd, onRemoveItem, onUpdateItemQuantity, onProceedToCheckout, allProducts, onQuickAdd }) => {

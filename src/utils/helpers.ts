@@ -13,6 +13,10 @@ export const calculateLoyaltyTier = (points: number): string => {
 };
 
 export const formatCurrency = (amount: number, currency = 'USD') => {
-    // Implementación futura más robusta si se desea
-    return `$ ${amount.toFixed(2)} ${currency}`;
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(amount);
 }
