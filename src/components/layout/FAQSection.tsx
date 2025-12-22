@@ -41,8 +41,8 @@ const faqs = [
         answer: "Puedes canjear tus puntos en cualquier momento. Cada 100 puntos = $1.00 USD de descuento. Solo debes indicarlo al hacer tu pedido (online o presencial). Tu saldo de puntos se descuenta automáticamente y se aplica el descuento al total."
     },
     {
-        question: "¿Qué es el RayCash y cómo lo uso?",
-        answer: "RayCash es dinero REAL en USD que ganas cuando tus amigos referidos compran (2% de cada compra). Aparece en tu perfil como 'Saldo Referidos'. Puedes usarlo para pagar parte o la totalidad de tu pedido. ¡Es como tener una billetera digital exclusiva!"
+        question: "¿Por qué no veo todo el menú de una vez?",
+        answer: "Para tu comodidad en el teléfono, hemos organizado el menú de forma inteligente. Verás las Hamburguesas y Perros abiertos por defecto, mientras que los Combos y Extras están en barras colapsables. ¡Solo toca el título de la categoría para descubrir más ricuras!"
     }
 ];
 

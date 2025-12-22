@@ -4,17 +4,17 @@ Este documento describe cómo operar el sistema administrativo de Ray Burger Gri
 
 ## 🔑 1. Acceso al Panel
 Para ingresar al panel de control:
-1.  En la página principal, haz clic en el botón **"Admin"** (ubicado en el encabezado en PC, o menú en móvil).
-2.  Ingresa la **Contraseña Maestra**: `raimundo27811341`.
-3.  Haz clic en "Entrar".
+1.  Inicia sesión con tu **Cuenta de Administrador** (Email y tu contraseña personal).
+2.  Haz clic en el botón **"Admin"** (ubicado en el encabezado en PC, o en el menú inferior en móvil).
+3.  El sistema verificará tu rol automáticamente. Solo usuarios autorizados pueden entrar.
 
 ---
 
 ## 💵 2. Gestión de Tasa del Dólar
 Para que el Checkout muestre el precio correcto en Bolívares:
-1.  Dentro del Admin Panel, verás la pestaña **"Inteligencia"** (Estadísticas).
-2.  Busca el campo **"Tasa BCV"** e ingresa el valor (ej. `60.5`).
-3.  Haz clic en "Actualizar Tasa".
+1.  Dentro del Admin Panel, ve a la pestaña **"Analytics"** (o en la sección de estadísticas inicial).
+2.  Busca el campo **"Tasa del Día"** e ingresa el valor actual de Bs por $1.
+3.  El cambio es instantáneo y se sincroniza con la nube.
 
 ---
 
@@ -42,10 +42,9 @@ Usa la pestaña **"Clientes"** para operar en el local:
 
 ## 🍔 5. Gestión de Menú
 Vete a la pestaña **"Productos"** (Icono de Bolsa):
-*   **Crear:** Usa el botón flotante `+` para agregar un nuevo plato.
-    *   *Categoría:* Asegúrate de escribirla exactamente igual a las existentes (Hamburguesas, Perros, Extras, Salsas, Combos) para que aparezca en su sección.
+*   **Crear:** Usa el botón `+` para agregar un nuevo plato. Las fotos ahora pueden subirse directamente desde tu teléfono.
 *   **Editar:** Haz clic en el lápiz azul de cualquier producto para cambiar precio, foto o descripción.
-*   **Foto:** Puedes pegar un link de imagen o subir una foto desde tu dispositivo.
+*   **Agotar/Activar:** Usa los botones de colores para ocultar productos que no tengas en stock temporalmente.
 
 ---
 

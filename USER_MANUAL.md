@@ -4,7 +4,12 @@
 
 ---
 
-## 🛰️ 1. Seguimiento de Pedidos en Vivo
+## 🎑 1. Menú Inteligente (Acordeón)
+¡Hemos optimizado la carta para tu móvil!
+- Verás las **Hamburguesas y Perros** abiertos por defecto para que pidas rápido.
+- Los **Combos, Extras y Bebidas** están organizados en secciones colapsables. ¡Solo toca el título para ver más!
+
+## 🛰️ 2. Seguimiento de Pedidos en Vivo
 ¡No más dudas! Ahora puedes ver el estado de tu hamburguesa en tiempo real:
 1. Al realizar tu pedido, aparecerá una **Barra de Progreso** en la parte inferior de la pantalla.
 2. Sabrás exactamente cuando tu pedido esté:

@@ -3,8 +3,8 @@
 Guía para gestionar tu negocio digital y mantener el control total.
 
 ## 1. Acceso Administrativo
-- En el menú principal (arriba a la derecha), toca el botón **"Acceso Dueño"** (o "Admin" en móvil, abajo derecha).
-- **Contraseña Maestra:** `raimundo27811341`
+- Inicia sesión con tu correo de administrador.
+- Toca el botón **"Admin"**. El sistema validará tu acceso por cargo (no más contraseñas genéricas).
 
 ## 2. Dashboard Principal - Inteligencia de Negocio
 Aquí verás el pulso de tu negocio en tiempo real:
@@ -30,7 +30,7 @@ En la pestaña "Gestión de Menú" puedes:
 - **Crear Producto:** Botón "Agregar Nuevo Producto".
 - **Editar:** Toca el lápiz ✏️ en cualquier producto.
     - *Tip:* Puedes cambiar precios, descripciones y fotos.
-- **Salsas Premium:** Busca las salsas (Ajo, Tártara, Bacon Jam, Queso Azul) en la lista. Son productos normales, así que puedes subirles el precio o cambiar la foto si lo deseas.
+- **Salsas y Extras:** Estas categorías aparecen colapsadas en el menú principal para que la navegación sea más rápida desde el móvil. Puedes gestionarlas igual que cualquier producto.
 
 ### 🆕 Control de Inventario (NUEVO)
 Cada producto ahora tiene un **toggle de disponibilidad**:
@@ -120,4 +120,4 @@ En el Dashboard, tienes un botón **"Backup"**.
 **Soporte Técnico:**
 Si algo falla o necesitas ayuda, contacta a tu desarrollador.
 
-**Versión:** 2.0 - Actualizado con todas las mejoras de Diciembre 2024
+**Versión:** 2.1 - Master Edition (Dic 2024). Optimizada para POS móvil y Nube Blindada.
