@@ -7,7 +7,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "La Clásica del Rey",
         description: "Carne 120g, vegetales y salsas.",
         basePrice_usd: 5.00,
-        image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop",
+        image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&h=400&fit=crop",
         category: "Hamburguesas",
         rating: 4.8,
         ratingCount: 120,
@@ -20,7 +20,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Ray Bacon Melt",
         description: "Queso fundido + Tocineta.",
         basePrice_usd: 6.50,
-        image: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=400&h=300&fit=crop",
+        image: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&h=400&fit=crop",
         category: "Hamburguesas",
         customizableOptions: [
             { id: "double_meat", name: "Hacerla Doble ($9.00 Total)", price_usd: 2.50, defaultIncluded: false }
