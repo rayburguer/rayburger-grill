@@ -53,7 +53,10 @@ const Header: React.FC<HeaderProps> = ({
                         <h1 className="font-anton text-2xl lg:text-3xl bg-gradient-to-r from-white via-orange-500 to-orange-700 bg-clip-text text-transparent uppercase leading-none tracking-tighter">
                             Ray Burger
                         </h1>
-                        <span className="bg-blue-600 text-[9px] text-white px-2 py-0.5 rounded-sm font-bold animate-pulse shadow-[0_0_10px_rgba(37,99,235,0.8)]">v5</span>
+                        <div className="flex flex-col items-start -mt-1">
+                            <span className="bg-blue-600 text-[9px] text-white px-2 py-0.5 rounded-sm font-bold animate-pulse shadow-[0_0_10px_rgba(37,99,235,0.8)]">v5</span>
+                            <span className="text-[7px] text-gray-500 font-mono tracking-widest">{new Date().toISOString().split('T')[0]}</span>
+                        </div>
                     </div>
                     <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-gray-500 leading-none mt-1">Grill & Sabor Premium</span>
                 </div>
