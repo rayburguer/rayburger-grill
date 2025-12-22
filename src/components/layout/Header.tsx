@@ -49,20 +49,23 @@ const Header: React.FC<HeaderProps> = ({
                     />
                 </div>
                 <div className="hidden md:flex flex-col">
-                    <h1 className="font-anton text-2xl lg:text-3xl bg-gradient-to-r from-white via-orange-500 to-orange-700 bg-clip-text text-transparent uppercase leading-none tracking-tighter">
-                        Ray Burger
-                    </h1>
+                    <div className="flex items-center gap-2">
+                        <h1 className="font-anton text-2xl lg:text-3xl bg-gradient-to-r from-white via-orange-500 to-orange-700 bg-clip-text text-transparent uppercase leading-none tracking-tighter">
+                            Ray Burger
+                        </h1>
+                        <span className="bg-orange-600 text-[8px] text-white px-1 rounded-sm font-bold animate-pulse">v3</span>
+                    </div>
                     <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-gray-500 leading-none mt-1">Grill & Sabor Premium</span>
                 </div>
             </motion.div>
             <nav className="flex items-center space-x-2 md:space-x-3">
                 <button
-                    className={`${secondaryButtonClasses} flex !bg-gray-800/80 !border-orange-500/20 px-2 sm:px-5`}
-                    title="Ver La Carrera"
+                    className={`${secondaryButtonClasses} flex !bg-orange-600/10 !border-orange-500/40 px-2 sm:px-4 hover:!bg-orange-600/20 active:scale-90`}
+                    title="Ver Ranking La Carrera"
                     onClick={onOpenLeaderboard}
                 >
-                    <Trophy className="w-5 h-5 sm:mr-1 text-orange-500" />
-                    <span className="sr-only sm:not-sr-only">La Carrera</span>
+                    <Trophy className="w-5 h-5 sm:mr-1 text-orange-500 drop-shadow-[0_0_8px_rgba(234,88,12,0.5)]" />
+                    <span className="sr-only sm:not-sr-only text-[10px] uppercase tracking-tighter">Ranking</span>
                 </button>
 
                 {currentUser ? (

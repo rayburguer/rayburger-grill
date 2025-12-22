@@ -117,6 +117,25 @@ export const SAMPLE_PRODUCTS: Product[] = [
         category: "Perros",
         customizableOptions: []
     },
+    // ========== ACOMPAÑAMIENTOS ==========
+    {
+        id: 50,
+        name: "Aros de Cebolla Especiales",
+        description: "8 aros súper crujientes + salsa de la casa.",
+        basePrice_usd: 4.50,
+        image: "https://images.unsplash.com/photo-1639024471283-03518883512d?w=600&h=400&fit=crop",
+        category: "Acompañamiento",
+        customizableOptions: []
+    },
+    {
+        id: 51,
+        name: "Tequeños Rayburger",
+        description: "6 unidades con queso fundido.",
+        basePrice_usd: 5.00,
+        image: "https://images.unsplash.com/photo-1627308595229-7830a5c91f9f?w=600&h=400&fit=crop",
+        category: "Acompañamiento",
+        customizableOptions: []
+    },
 
     // ========== COMBOS ==========
     {

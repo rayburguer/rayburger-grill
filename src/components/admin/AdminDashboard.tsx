@@ -34,6 +34,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const { suggestions, deleteSuggestion } = useSuggestions();
     const { isAdmin, loginAdmin, logoutAdmin } = useAdmin();
     const { getStats } = useSurveys();
+    const { migrateAllToCloud, isSyncing } = useCloudSync();
     const [password, setPassword] = useState('');
     const [activeTab, setActiveTab] = useState<'stats' | 'cashregister' | 'products' | 'orders' | 'redeem' | 'customers' | 'retention' | 'suggestions' | 'cloud'>('stats');
     const [redeemSearch, setRedeemSearch] = useState('');
@@ -261,8 +262,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </div>
                                 </div>
                                 <div className="flex justify-end gap-3 mt-6">
-                                    <button onClick={resetToSample} className="mr-auto px-4 py-2 border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 rounded text-xs font-bold transition-all flex items-center gap-2">
-                                        <RefreshCw size={14} /> Cargar Menú Oficial
+                                    <button
+                                        onClick={async () => {
+                                            if (confirm('¿Cargar menú oficial y sincronizar con la nube?')) {
+                                                resetToSample();
+                                                // Wait a bit for state to update and then migrate
+                                                setTimeout(async () => {
+                                                    await migrateAllToCloud();
+                                                    alert('✅ Menú Oficial cargado y sincronizado en la Nube');
+                                                }, 1000);
+                                            }
+                                        }}
+                                        disabled={isSyncing}
+                                        className="mr-auto px-4 py-2 border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 rounded text-xs font-bold transition-all flex items-center gap-2 disabled:opacity-50"
+                                    >
+                                        <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
+                                        {isSyncing ? 'Sincronizando...' : 'Cargar Menú Oficial'}
                                     </button>
                                     {isEditing && <button onClick={() => { setIsEditing(false); setCurrentProduct({}); }} className="text-gray-400 hover:text-white">Cancelar</button>}
                                     <button onClick={handleSaveProduct} className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded font-bold shadow-lg shadow-orange-900/20">
