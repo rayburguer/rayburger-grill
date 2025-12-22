@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rayburger-cache-v3'; // INCREMENTED VERSION AGAIN
+const CACHE_NAME = 'rayburger-cache-v4'; // INCREMENTED VERSION AGAIN TO v4
 const urlsToCache = [
     '/',
     '/index.html',
