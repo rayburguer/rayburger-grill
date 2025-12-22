@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Product } from '../types';
 import { SAMPLE_PRODUCTS } from '../data/products';
 import { debounce, safeLocalStorage } from '../utils/debounce';
+import { useCloudSync } from './useCloudSync';
 
 export const useProducts = () => {
     const [products, setProducts] = useState<Product[]>([]);
+    const { pushToCloud } = useCloudSync();
 
     // Debounced save function
     const saveProductsDebounced = useRef(
@@ -86,20 +88,23 @@ export const useProducts = () => {
         window.dispatchEvent(new CustomEvent('rayburger_products_updated', { detail: { source: 'useProducts' } }));
     }, [saveProductsDebounced]);
 
-    const addProduct = useCallback((product: Product) => {
+    const addProduct = useCallback(async (product: Product) => {
         const newProducts = [...products, product];
         saveProducts(newProducts);
-    }, [products, saveProducts]);
+        await pushToCloud('rb_products', newProducts);
+    }, [products, saveProducts, pushToCloud]);
 
-    const updateProduct = useCallback((updatedProduct: Product) => {
+    const updateProduct = useCallback(async (updatedProduct: Product) => {
         const newProducts = products.map(p => p.id === updatedProduct.id ? updatedProduct : p);
         saveProducts(newProducts);
-    }, [products, saveProducts]);
+        await pushToCloud('rb_products', newProducts);
+    }, [products, saveProducts, pushToCloud]);
 
-    const deleteProduct = useCallback((productId: number) => {
+    const deleteProduct = useCallback(async (productId: number) => {
         const newProducts = products.filter(p => p.id !== productId);
         saveProducts(newProducts);
-    }, [products, saveProducts]);
+        await pushToCloud('rb_products', newProducts);
+    }, [products, saveProducts, pushToCloud]);
 
     const resetToSample = useCallback(() => {
         if (confirm('¿Estás seguro de que quieres borrar el menú actual y cargar el menú oficial del código? Se perderán los cambios manuales.')) {
