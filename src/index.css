@@ -113,3 +113,29 @@ a:not(.no-underline) {
 a:hover:not(.no-underline) {
   text-decoration-color: #f97316;
 }
+
+/* MOBILE OPTIMIZATIONS */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Ensure touch targets are at least 44px for accessibility */
+button,
+a,
+input[type="checkbox"],
+input[type="radio"] {
+  min-height: 2.5rem;
+  /* ~40px minimum */
+}
+
+/* Smooth Category Slider (Hide scrollbar but keep functionality) */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

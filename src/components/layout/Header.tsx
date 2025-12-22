@@ -57,12 +57,12 @@ const Header: React.FC<HeaderProps> = ({
             </motion.div>
             <nav className="flex items-center space-x-2 md:space-x-3">
                 <button
-                    className={`${secondaryButtonClasses} hidden md:flex !bg-gray-800/80 !border-orange-500/20`}
+                    className={`${secondaryButtonClasses} flex !bg-gray-800/80 !border-orange-500/20 px-2 sm:px-5`}
                     title="Ver La Carrera"
                     onClick={onOpenLeaderboard}
                 >
-                    <Trophy className="w-5 h-5 md:mr-1 text-orange-500" />
-                    <span className="sr-only md:not-sr-only">La Carrera</span>
+                    <Trophy className="w-5 h-5 sm:mr-1 text-orange-500" />
+                    <span className="sr-only sm:not-sr-only">La Carrera</span>
                 </button>
 
                 {currentUser ? (
