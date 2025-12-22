@@ -104,6 +104,54 @@ input:disabled {
   cursor: not-allowed !important;
 }
 
+/* --- Accordion & Mobile Refinements --- */
+section button:active {
+  transform: scale(0.98);
+}
+
+.accordion-item-exit {
+  overflow: hidden;
+}
+
+@keyframes slideDown {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+
+  to {
+    height: auto;
+    opacity: 1;
+  }
+}
+
+/* Custom Scrollbar for POS feel */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ea580c;
+}
+
+/* Enhanced Buttons for Mobile */
+button:focus {
+  outline: none;
+}
+
+.category-chip-active {
+  @apply bg-orange-600 border-orange-400 shadow-lg shadow-orange-600/20 scale-105;
+}
+
 /* Ensure links are distinguishable */
 a:not(.no-underline) {
   text-decoration-color: rgba(249, 115, 22, 0.5);

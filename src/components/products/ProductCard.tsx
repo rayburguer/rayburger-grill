@@ -98,15 +98,23 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenProductDetail 
                         ${product.basePrice_usd.toFixed(2)}
                     </span>
                     <motion.button
-                        whileTap={{ scale: 0.9 }}
+                        whileTap={{ scale: 0.8 }}
+                        whileHover={{ scale: 1.1 }}
                         disabled={!isAvailable}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg transition-all ${isAvailable
+                        className={`w-14 h-14 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-white shadow-xl transition-all ${isAvailable
                             ? 'bg-orange-600 shadow-orange-600/40 hover:bg-orange-500 hover:shadow-orange-500/60'
                             : 'bg-gray-700 shadow-none cursor-not-allowed'
                             }`}
                         aria-label={`Añadir ${product.name} al carrito`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            // If this was a direct "add" from home, but we want the modal to open 
+                            // for customizations, we should probably keep onOpenProductDetail.
+                            // However, the user asked for POS efficiency.
+                            isAvailable && onOpenProductDetail(product);
+                        }}
                     >
-                        <Plus size={20} />
+                        <Plus size={28} className="sm:size-20" />
                     </motion.button>
                 </div>
             </div>

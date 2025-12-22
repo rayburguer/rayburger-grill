@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, Loader2 } from 'lucide-react';
 import Modal from '../ui/Modal';
 import { User } from '../../types';
 
@@ -9,7 +9,7 @@ interface CheckoutModalProps {
     onClose: () => void;
     totalUsd: number;
     tasaBs: number;
-    onOrderConfirmed: (buyerEmail: string, buyerName?: string, deliveryInfo?: { method: 'delivery' | 'pickup', fee: number, phone: string }) => void;
+    onOrderConfirmed: (buyerEmail: string, buyerName?: string, deliveryInfo?: { method: 'delivery' | 'pickup', fee: number, phone: string }, newRegistrationData?: { password: string }, pointsUsed?: number) => void;
     currentUser: User | null;
 }
 
@@ -21,7 +21,37 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
     const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('pickup');
     const [deliveryFee, setDeliveryFee] = useState<number>(0);
 
-    const finalTotalUsd = totalUsd + deliveryFee;
+    // Coupon Logic
+    const [couponCode, setCouponCode] = useState('');
+    const [discountPercent, setDiscountPercent] = useState(0);
+    const [couponError, setCouponError] = useState('');
+
+    // Seamless Registration State
+    const [isRegistering, setIsRegistering] = useState(false);
+    const [registerPassword, setRegisterPassword] = useState('');
+
+    // Points Redemption State
+    const [usePoints, setUsePoints] = useState(false);
+    const [pointsToUse, setPointsToUse] = useState(0);
+
+    // Loading and Error States
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const applyCoupon = () => {
+        if (couponCode.toUpperCase().trim() === 'BURGERIDEAL5') {
+            setDiscountPercent(5);
+            setCouponError('');
+        } else {
+            setDiscountPercent(0);
+            setCouponError('Código inválido o expirado');
+        }
+    };
+
+    const subtotal = totalUsd;
+    const discountAmount = (subtotal * discountPercent) / 100;
+    const pointsDiscount = pointsToUse / 100; // 100 points = $1 USD
+    const finalTotalUsd = subtotal - discountAmount - pointsDiscount + deliveryFee;
     const totalBs = (finalTotalUsd * tasaBs).toFixed(2);
 
     useEffect(() => {
@@ -33,7 +63,32 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
     }, [currentUser]);
 
     // Validation: Name and Phone are required
-    const isConfirmButtonDisabled = !buyerName.trim() || !buyerPhone?.trim();
+    const isConfirmButtonDisabled = !buyerName.trim() || !buyerPhone?.trim() || isProcessing;
+
+    // Handle order confirmation with error handling
+    const handleConfirmOrder = async () => {
+        if (isConfirmButtonDisabled || (isRegistering && registerPassword.length < 4)) return;
+
+        setIsProcessing(true);
+        setError(null);
+
+        try {
+            const registrationData = (isRegistering && !currentUser) ? { password: registerPassword } : undefined;
+            await onOrderConfirmed(
+                buyerEmail,
+                buyerName,
+                { method: deliveryMethod, fee: deliveryFee, phone: buyerPhone },
+                registrationData,
+                usePoints ? pointsToUse : 0
+            );
+            // Order confirmed successfully - modal will close via parent component
+        } catch (err) {
+            console.error('Error al confirmar pedido:', err);
+            setError('Hubo un problema al procesar tu pedido. Por favor intenta nuevamente.');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Confirmación de Pedido">
@@ -131,16 +186,153 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                 </div>
             </div>
 
+            {/* POINTS REDEMPTION SECTION */}
+            {currentUser && currentUser.points > 0 && (
+                <div className="mb-6 bg-gradient-to-r from-purple-900/20 to-blue-900/20 p-4 rounded-xl border border-purple-500/30">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                            <span className="text-2xl">💎</span>
+                            <div>
+                                <p className="text-white font-bold text-sm">Tienes {currentUser.points} puntos</p>
+                                <p className="text-gray-400 text-xs">= ${(currentUser.points / 100).toFixed(2)} USD disponibles</p>
+                            </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={usePoints}
+                                onChange={(e) => {
+                                    setUsePoints(e.target.checked);
+                                    if (!e.target.checked) setPointsToUse(0);
+                                }}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                        </label>
+                    </div>
+
+                    {usePoints && (
+                        <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <label className="block text-gray-300 text-xs mb-2">Puntos a usar:</label>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max={Math.min(currentUser.points, Math.floor(finalTotalUsd * 100))}
+                                    value={pointsToUse}
+                                    onChange={(e) => setPointsToUse(Number(e.target.value))}
+                                    className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                                />
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max={Math.min(currentUser.points, Math.floor(finalTotalUsd * 100))}
+                                    value={pointsToUse}
+                                    onChange={(e) => setPointsToUse(Math.min(Number(e.target.value), currentUser.points))}
+                                    className="w-20 bg-gray-800 border border-purple-500/50 rounded px-2 py-1 text-white text-sm text-center"
+                                />
+                            </div>
+                            {pointsToUse > 0 && (
+                                <p className="text-green-400 text-xs mt-2 font-bold">
+                                    🎉 Descuento de ${pointsDiscount.toFixed(2)} USD aplicado
+                                </p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Coupon Section */}
+            <div className="mb-6 bg-gray-800/30 p-4 rounded-xl border border-gray-700 border-dashed">
+                <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Código Promocional</label>
+                <div className="flex gap-2">
+                    <input
+                        type="text"
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        placeholder="Ej: BURGERIDEAL5"
+                        className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 outline-none uppercase font-mono"
+                    />
+                    <button
+                        onClick={applyCoupon}
+                        className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors"
+                    >
+                        Aplicar
+                    </button>
+                </div>
+                {couponError && <p className="text-red-500 text-xs mt-2 font-bold">{couponError}</p>}
+                {discountPercent > 0 && (
+                    <div className="mt-2 text-green-500 text-xs font-bold flex items-center gap-1">
+                        <span>🎉 ¡Cupón aplicado! Ahorras ${discountAmount.toFixed(2)} USD</span>
+                    </div>
+                )}
+            </div>
+
+            {/* SEAMLESS REGISTRATION CHECKBOX */}
+            {!currentUser && (
+                <div className="mb-6 bg-gradient-to-r from-orange-900/20 to-orange-800/20 p-4 rounded-xl border border-orange-500/30">
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                        <div className="relative flex-shrink-0">
+                            <input
+                                type="checkbox"
+                                checked={isRegistering}
+                                onChange={(e) => setIsRegistering(e.target.checked)}
+                                className="peer sr-only"
+                            />
+                            <div className="w-6 h-6 border-2 border-orange-500 rounded bg-gray-900 peer-checked:bg-orange-500 transition-all"></div>
+                            <div className="absolute inset-0 flex items-center justify-center text-white scale-0 peer-checked:scale-100 transition-transform pointer-events-none">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                            </div>
+                        </div>
+                        <span className="text-white font-bold text-sm group-hover:text-orange-300 transition-colors">
+                            🎁 ¡Quiero ganar mis $50 de regalo y sumar puntos!
+                        </span>
+                    </label>
+
+                    {isRegistering && (
+                        <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <label className="block text-gray-400 mb-1 text-xs uppercase font-bold tracking-wider">Crea una contraseña <span className="text-red-500">*</span></label>
+                            <input
+                                type="password"
+                                placeholder="Mínimo 4 caracteres"
+                                value={registerPassword}
+                                onChange={(e) => setRegisterPassword(e.target.value)}
+                                className="w-full px-4 py-2 rounded-md bg-gray-900 text-white border border-orange-500/50 focus:border-orange-500 outline-none transition-colors"
+                            />
+                            <p className="text-[10px] text-gray-400 mt-1">Crearemos tu cuenta automáticamente al confirmar el pedido.</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Error Message */}
+            {error && (
+                <div className="mb-4 bg-red-900/20 border border-red-500/30 rounded-lg p-3">
+                    <p className="text-red-400 text-sm font-semibold">❌ {error}</p>
+                </div>
+            )}
+
             <button
-                onClick={() => onOrderConfirmed(buyerEmail, buyerName, { method: deliveryMethod, fee: deliveryFee, phone: buyerPhone })}
-                disabled={isConfirmButtonDisabled}
-                className={`w-full py-4 rounded-full text-lg font-bold uppercase tracking-wide transition-all duration-300 flex items-center justify-center gap-2 ${isConfirmButtonDisabled ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white shadow-xl hover:shadow-green-500/30 hover:-translate-y-1'
+                onClick={handleConfirmOrder}
+                disabled={isConfirmButtonDisabled || (isRegistering && registerPassword.length < 4)}
+                className={`w-full py-4 rounded-full text-lg font-bold uppercase tracking-wide transition-all duration-300 flex items-center justify-center gap-2 ${isConfirmButtonDisabled || (isRegistering && registerPassword.length < 4)
+                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                        : 'bg-green-600 hover:bg-green-500 text-white shadow-xl hover:shadow-green-500/30 hover:-translate-y-1'
                     }`}
             >
-                {isConfirmButtonDisabled ? 'Faltan datos de contacto' : (
+                {isProcessing ? (
+                    <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Procesando...
+                    </>
+                ) : isConfirmButtonDisabled ? (
+                    'Faltan datos de contacto'
+                ) : (isRegistering && registerPassword.length < 4) ? (
+                    'Ingresa una contraseña'
+                ) : (
                     <>
                         <MessageSquare className="w-5 h-5" />
-                        Confirmar Pedido
+                        {isRegistering ? 'Crear Cuenta y Confirmar' : 'Confirmar Pedido'}
                     </>
                 )}
             </button>

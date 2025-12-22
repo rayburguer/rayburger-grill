@@ -6,7 +6,7 @@ import { useSurveys } from '../../hooks/useSurveys';
 import {
     Plus, Edit, Trash2, X, BarChart3, Clock,
     Download, Upload, Search, Gift, Cloud, RefreshCw,
-    CheckCircle2, LogOut, Lightbulb, DollarSign, TrendingUp
+    CheckCircle2, LogOut, Lightbulb, DollarSign
 } from 'lucide-react';
 import { useCloudSync } from '../../hooks/useCloudSync';
 import { useSuggestions } from '../../hooks/useSuggestions';
@@ -24,21 +24,30 @@ interface AdminDashboardProps {
     onUpdateTasa: (newTasa: number) => void;
     guestOrders: Order[];
     updateGuestOrders: (updatedOrders: Order[]) => void;
+    initialOrderId?: string; // For deep linking
+    onShowToast: (msg: string) => void;
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({
     isOpen, onClose, registeredUsers, updateUsers,
-    tasaBs, onUpdateTasa, guestOrders, updateGuestOrders
+    tasaBs, onUpdateTasa, guestOrders, updateGuestOrders, initialOrderId, onShowToast
 }) => {
     const { products, addProduct, updateProduct, deleteProduct, resetToSample } = useProducts();
     const { suggestions, deleteSuggestion } = useSuggestions();
     const { isAdmin, loginAdmin, logoutAdmin } = useAdmin();
     const { getStats } = useSurveys();
-    const { migrateAllToCloud, isSyncing } = useCloudSync();
+    const { isSyncing } = useCloudSync();
     const [password, setPassword] = useState('');
-    const [activeTab, setActiveTab] = useState<'stats' | 'cashregister' | 'products' | 'orders' | 'redeem' | 'customers' | 'retention' | 'suggestions' | 'cloud'>('stats');
+    const [activeTab, setActiveTab] = useState<'stats' | 'cashregister' | 'products' | 'orders' | 'redeem' | 'customers' | 'suggestions' | 'cloud'>('stats');
     const [redeemSearch, setRedeemSearch] = useState('');
     const [redeemAmount, setRedeemAmount] = useState<number>(0);
+
+    // Deep Link: Auto-navigate to orders if orderId present
+    React.useEffect(() => {
+        if (initialOrderId && isAdmin) {
+            setActiveTab('orders');
+        }
+    }, [initialOrderId, isAdmin]);
 
     const allOrders = [
         ...registeredUsers.flatMap(u => (u.orders || []).map(o => ({ ...o, userEmail: u.email, userName: u.name, isGuest: false }))),
@@ -126,11 +135,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     a.download = `rayburger_backup_${new Date().toISOString().split('T')[0]}.json`;
                                     a.click();
                                     persistence.recordBackup();
-                                    alert('✅ Respaldo descargado.');
+                                    onShowToast('✅ Respaldo descargado exitosamente');
                                 }}
                                 className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-md transition-all flex items-center gap-1.5 shadow-lg"
                             >
                                 <Download size={14} /> Backup
+                            </button>
+                            <button
+                                onClick={resetToSample}
+                                className="ml-2 px-3 py-1.5 bg-red-900/80 hover:bg-red-700 text-red-100 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 border border-red-700 shadow-lg"
+                                title="Borrar menú actual y restaurar el original"
+                            >
+                                <Trash2 size={14} /> Restaurar Menú
                             </button>
                         </div>
                         <button onClick={onClose} className="p-2 bg-gray-700 hover:bg-red-900/50 rounded-full transition-colors text-white"><X size={20} /></button>
@@ -139,22 +155,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 {/* Navbar */}
                 <div className="flex border-b border-gray-700 bg-gray-800/50 overflow-x-auto hide-scrollbar">
-                    {(['stats', 'cashregister', 'products', 'orders', 'redeem', 'customers', 'retention', 'suggestions', 'cloud'] as const).map(tab => (
+                    {(['stats', 'cashregister', 'products', 'orders', 'redeem', 'customers', 'suggestions', 'cloud'] as const).map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`flex-none sm:flex-1 px-6 py-4 text-center font-semibold transition-colors whitespace-nowrap capitalize ${activeTab === tab ? 'text-orange-500 border-b-2 border-orange-500 bg-gray-800' : 'text-gray-400 hover:text-white'}`}
+                            className={`flex-none sm:flex-1 px-8 py-5 text-center font-bold tracking-tight transition-all whitespace-nowrap capitalize border-b-2 ${activeTab === tab ? 'text-orange-500 border-orange-500 bg-orange-500/5' : 'text-gray-400 border-transparent hover:text-white'}`}
                         >
-                            {tab === 'stats' && <BarChart3 className="inline mr-2 w-4 h-4" />}
-                            {tab === 'cashregister' && <DollarSign className="inline mr-2 w-4 h-4" />}
-                            {tab === 'products' && <Edit className="inline mr-2 w-4 h-4" />}
-                            {tab === 'orders' && <Clock className="inline mr-2 w-4 h-4" />}
-                            {tab === 'redeem' && <Gift className="inline mr-2 w-4 h-4" />}
-                            {tab === 'customers' && <Search className="inline mr-2 w-4 h-4" />}
-                            {tab === 'retention' && <TrendingUp className="inline mr-2 w-4 h-4" />}
-                            {tab === 'suggestions' && <Lightbulb className="inline mr-2 w-4 h-4" />}
-                            {tab === 'cloud' && <Cloud className="inline mr-2 w-4 h-4" />}
-                            {tab === 'stats' ? 'BI Analytics' : tab === 'suggestions' ? 'Buzón de Ideas' : tab === 'cashregister' ? 'Cierre Caja' : tab === 'retention' ? 'Marketing' : tab}
+                            <div className="flex flex-col items-center gap-1">
+                                {tab === 'stats' && <BarChart3 className="w-5 h-5 mb-1" />}
+                                {tab === 'cashregister' && <DollarSign className="w-5 h-5 mb-1" />}
+                                {tab === 'products' && <Edit className="w-5 h-5 mb-1" />}
+                                {tab === 'orders' && <Clock className="w-5 h-5 mb-1 text-orange-400" />}
+                                {tab === 'redeem' && <Gift className="w-5 h-5 mb-1" />}
+                                {tab === 'customers' && <Search className="w-5 h-5 mb-1" />}
+                                {tab === 'suggestions' && <Lightbulb className="w-5 h-5 mb-1" />}
+                                {tab === 'cloud' && <Cloud className="w-5 h-5 mb-1 text-blue-400" />}
+                                <span className="text-[10px] uppercase font-black">{tab === 'stats' ? 'Analytics' : tab === 'suggestions' ? 'Ideas' : tab === 'cashregister' ? 'CAJA' : tab}</span>
+                            </div>
                         </button>
                     ))}
                 </div>
@@ -206,6 +223,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             updateGuestOrders={updateGuestOrders}
                             products={products}
                             updateProduct={updateProduct}
+                            highlightOrderId={initialOrderId}
                         />
                     )}
 
@@ -230,13 +248,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         value={currentProduct.basePrice_usd || ''}
                                         onChange={e => setCurrentProduct({ ...currentProduct, basePrice_usd: Number(e.target.value) })}
                                     />
-                                    <input
-                                        className="bg-gray-900 border border-gray-700 rounded p-3 text-white focus:border-orange-500 outline-none"
-                                        placeholder="Stock (Opcional)"
-                                        type="number"
-                                        value={currentProduct.stockQuantity || ''}
-                                        onChange={e => setCurrentProduct({ ...currentProduct, stockQuantity: Number(e.target.value) })}
-                                    />
+                                    {/* Stock field hidden for Day 1 simplicity */}
                                     <input
                                         className="bg-gray-900 border border-gray-700 rounded p-3 text-white focus:border-orange-500 outline-none lg:col-span-2"
                                         placeholder="Categoría"
@@ -264,14 +276,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <div className="flex justify-end gap-3 mt-6">
                                     <button
                                         onClick={async () => {
-                                            if (confirm('¿Cargar menú oficial y sincronizar con la nube?')) {
-                                                resetToSample();
-                                                // Wait a bit for state to update and then migrate
-                                                setTimeout(async () => {
-                                                    await migrateAllToCloud();
-                                                    alert('✅ Menú Oficial cargado y sincronizado en la Nube');
-                                                }, 1000);
-                                            }
+                                            await resetToSample();
                                         }}
                                         disabled={isSyncing}
                                         className="mr-auto px-4 py-2 border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 rounded text-xs font-bold transition-all flex items-center gap-2 disabled:opacity-50"
@@ -332,7 +337,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             if (!phone) return;
                                             const newUser: User = {
                                                 email: phone + "@ray.pos", phone, name: (new FormData(e.target).get('name') as string) || "Cliente",
-                                                points: 0, referralCode: 'POS-' + Date.now(), role: 'customer', orders: [], loyaltyTier: 'Bronze', passwordHash: '1234'
+                                                points: 50, // Welcome Bonus for POS registration too!
+                                                referralCode: 'POS-' + Date.now(), role: 'customer', orders: [], loyaltyTier: 'Bronze', passwordHash: '1234'
                                             };
                                             updateUsers([...registeredUsers, newUser]);
                                             e.target.reset();
@@ -402,7 +408,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                         if (redeemAmount > 0 && redeemAmount <= user.points) {
                                                             updateUsers(registeredUsers.map(u => u.phone === user.phone ? { ...u, points: u.points - redeemAmount } : u));
                                                             setRedeemAmount(0);
-                                                            alert('✅ Canje exitoso');
+                                                            onShowToast(`✅ Canje exitoso de ${redeemAmount} puntos`);
                                                         }
                                                     }}
                                                     className="px-6 bg-orange-600 rounded-lg font-bold"
@@ -456,115 +462,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <CashRegisterReport orders={allOrders} tasaBs={tasaBs} />
                     )}
 
-                    {activeTab === 'retention' && (
-                        <div className="space-y-6">
-                            <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
-                                <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-                                    <TrendingUp className="text-blue-500" size={28} />
-                                    Marketing de Retención
-                                </h3>
 
-                                {(() => {
-                                    const inactiveUsers = registeredUsers.filter(user => {
-                                        if (!user.orders || user.orders.length === 0) return false;
-                                        const lastOrder = user.orders.sort((a, b) => b.timestamp - a.timestamp)[0];
-                                        const daysSinceLastOrder = (Date.now() - lastOrder.timestamp) / (1000 * 60 * 60 * 24);
-                                        return daysSinceLastOrder >= 15;
-                                    });
-
-                                    return (
-                                        <>
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                                                <div className="bg-gradient-to-br from-red-900/30 to-red-800/30 p-6 rounded-2xl border border-red-700/50">
-                                                    <p className="text-sm text-gray-400 mb-2">Clientes Inactivos</p>
-                                                    <p className="text-4xl font-black text-red-400">{inactiveUsers.length}</p>
-                                                    <p className="text-xs text-gray-500 mt-1">15+ días sin comprar</p>
-                                                </div>
-                                                <div className="bg-gradient-to-br from-green-900/30 to-green-800/30 p-6 rounded-2xl border border-green-700/50">
-                                                    <p className="text-sm text-gray-400 mb-2">Clientes Activos</p>
-                                                    <p className="text-4xl font-black text-green-400">{registeredUsers.length - inactiveUsers.length}</p>
-                                                    <p className="text-xs text-gray-500 mt-1">Compraron recientemente</p>
-                                                </div>
-                                                <div className="bg-gradient-to-br from-blue-900/30 to-blue-800/30 p-6 rounded-2xl border border-blue-700/50">
-                                                    <p className="text-sm text-gray-400 mb-2">Tasa de Retención</p>
-                                                    <p className="text-4xl font-black text-blue-400">
-                                                        {registeredUsers.length > 0 ? Math.round(((registeredUsers.length - inactiveUsers.length) / registeredUsers.length) * 100) : 0}%
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            {inactiveUsers.length === 0 ? (
-                                                <div className="text-center py-12 text-gray-500">
-                                                    <p className="text-lg font-bold">¡Excelente! No hay clientes inactivos</p>
-                                                    <p className="text-sm mt-2">Todos tus clientes están comprando regularmente 🎉</p>
-                                                </div>
-                                            ) : (
-                                                <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-                                                    <div className="overflow-x-auto">
-                                                        <table className="min-w-full divide-y divide-gray-800">
-                                                            <thead className="bg-gray-800">
-                                                                <tr>
-                                                                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-300 uppercase">Cliente</th>
-                                                                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-300 uppercase">Última Compra</th>
-                                                                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-300 uppercase">Días Inactivo</th>
-                                                                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-300 uppercase">Acción</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody className="divide-y divide-gray-800">
-                                                                {inactiveUsers.map(user => {
-                                                                    const lastOrder = user.orders.sort((a, b) => b.timestamp - a.timestamp)[0];
-                                                                    const daysSince = Math.floor((Date.now() - lastOrder.timestamp) / (1000 * 60 * 60 * 24));
-
-                                                                    return (
-                                                                        <tr key={user.phone} className="hover:bg-gray-800/50">
-                                                                            <td className="px-4 py-3 text-sm">
-                                                                                <div className="text-white font-bold">{user.name}</div>
-                                                                                <div className="text-gray-500 text-xs">{user.phone}</div>
-                                                                            </td>
-                                                                            <td className="px-4 py-3 text-sm text-gray-400">
-                                                                                {new Date(lastOrder.timestamp).toLocaleDateString()}
-                                                                            </td>
-                                                                            <td className="px-4 py-3 text-sm">
-                                                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${daysSince > 30 ? 'bg-red-900/50 text-red-400' : 'bg-yellow-900/50 text-yellow-400'
-                                                                                    }`}>
-                                                                                    {daysSince} días
-                                                                                </span>
-                                                                            </td>
-                                                                            <td className="px-4 py-3 text-center">
-                                                                                <a
-                                                                                    href={`https://wa.me/${user.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                                                                                        `¡Hola ${user.name}! 😊\nTe extrañamos en Ray Burger Grill 🍔\n\nTenemos una PROMO ESPECIAL para ti:\n🎁 20% OFF en tu próximo pedido\n\n¡Haz tu pedido ahora!\n👉 https://rayburgergrill.com.ve`
-                                                                                    )}`}
-                                                                                    target="_blank"
-                                                                                    rel="noopener noreferrer"
-                                                                                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-xs transition-all"
-                                                                                >
-                                                                                    📲 Enviar Promo
-                                                                                </a>
-                                                                            </td>
-                                                                        </tr>
-                                                                    );
-                                                                })}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'cloud' && <CloudSyncSection />}
+                    {activeTab === 'cloud' && <CloudSyncSection onShowToast={onShowToast} />}
                 </div>
             </div>
         </div>
     );
 };
 
-const CloudSyncSection: React.FC = () => {
+const CloudSyncSection: React.FC<{ onShowToast: (msg: string) => void }> = ({ onShowToast }) => {
     const { isSyncing, lastSync, migrateAllToCloud } = useCloudSync();
     const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
@@ -582,16 +488,27 @@ const CloudSyncSection: React.FC = () => {
                 </div>
                 <button
                     onClick={async () => {
+                        setStatus('idle');
                         const results = await migrateAllToCloud();
-                        if (results.some(r => r.error)) setStatus('error');
-                        else setStatus('success');
+                        if (results.some(r => r.error)) {
+                            setStatus('error');
+                            onShowToast('❌ Error en la sincronización. Verifica tus credenciales.');
+                        } else {
+                            setStatus('success');
+                            onShowToast('✅ Datos sincronizados con la nube correctamente.');
+                        }
                     }}
                     disabled={isSyncing}
                     className={`w-full py-4 rounded-xl font-black text-lg uppercase transition-all flex items-center justify-center gap-3
-                        ${isSyncing ? 'bg-gray-700' : status === 'success' ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+                        ${isSyncing ? 'bg-gray-700' : status === 'success' ? 'bg-green-600' : status === 'error' ? 'bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}`}
                 >
-                    {isSyncing ? <><RefreshCw className="animate-spin" /> Sincronizando...</> : status === 'success' ? <><CheckCircle2 /> ¡Protegido!</> : 'Iniciar Migración Cloud'}
+                    {isSyncing ? <><RefreshCw className="animate-spin" /> Sincronizando...</> : status === 'success' ? <><CheckCircle2 /> ¡Protegido!</> : status === 'error' ? '❌ Error' : 'Iniciar Migración Cloud'}
                 </button>
+                {status === 'error' && (
+                    <p className="text-center text-red-400 text-sm mt-2">
+                        Hubo un problema. Revisa la consola o tu conexión. (Supabase Keys)
+                    </p>
+                )}
             </div>
         </div>
     );

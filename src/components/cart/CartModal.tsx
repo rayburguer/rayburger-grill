@@ -89,8 +89,8 @@ const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, totalUsd, 
                         <span className="text-orange-500">$ {totalUsd.toFixed(2)} USD</span>
                     </div>
 
-                    {/* UPSELLING SECTION */}
-                    {upsellItems.length > 0 && (
+                    {/* UPSELLING SECTION - Paused for Day 1 simplicity, activate when you have customer data */}
+                    {/* {upsellItems.length > 0 && (
                         <div className="mt-8 border-t border-gray-700 pt-6">
                             <h3 className="text-sm uppercase font-bold tracking-widest text-orange-400 mb-4 flex items-center gap-2">
                                 <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
@@ -122,7 +122,7 @@ const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, totalUsd, 
                                 ))}
                             </div>
                         </div>
-                    )}
+                    )} */}
 
                     <button
                         onClick={onProceedToCheckout}

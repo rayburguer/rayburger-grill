@@ -26,7 +26,7 @@ const faqs = [
     },
     {
         question: "¿Puedo sugerir nuevas hamburguesas?",
-        answer: "¡Por supuesto! Tenemos un 'Buzón de Ideas' donde puedes describir tu hamburguesa ideal, qué extras te gustaría o qué salsas nos faltan. Leemos todas las sugerencias y las mejores ideas se convierten en productos reales."
+        answer: "¡Sí! Con nuestra nueva sección 'Crea la Burger Ideal', puedes votar por tus ingredientes favoritos. Cada mes, la combinación ganadora se convertirá en la 'Burger del Mes' y estará disponible para todos. ¡Tú decides qué cocinamos!"
     },
     {
         question: "¿Tienen fecha de vencimiento los puntos?",
@@ -35,6 +35,14 @@ const faqs = [
     {
         question: "¿Qué beneficios tengo al registrarme?",
         answer: "¡Muchos! Recibes 50 puntos de bienvenida ($0.50), accedes a niveles de lealtad con hasta 8% de cashback, puedes girar la Ruleta Semanal, obtienes un código de referido para ganar dinero, y puedes repetir tus pedidos favoritos con un click."
+    },
+    {
+        question: "¿Cómo canjeo mis puntos?",
+        answer: "Puedes canjear tus puntos en cualquier momento. Cada 100 puntos = $1.00 USD de descuento. Solo debes indicarlo al hacer tu pedido (online o presencial). Tu saldo de puntos se descuenta automáticamente y se aplica el descuento al total."
+    },
+    {
+        question: "¿Qué es el RayCash y cómo lo uso?",
+        answer: "RayCash es dinero REAL en USD que ganas cuando tus amigos referidos compran (2% de cada compra). Aparece en tu perfil como 'Saldo Referidos'. Puedes usarlo para pagar parte o la totalidad de tu pedido. ¡Es como tener una billetera digital exclusiva!"
     }
 ];
 

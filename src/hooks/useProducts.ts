@@ -6,7 +6,7 @@ import { useCloudSync } from './useCloudSync';
 
 export const useProducts = () => {
     const [products, setProducts] = useState<Product[]>([]);
-    const { pushToCloud } = useCloudSync();
+    const { replaceInCloud } = useCloudSync();
 
     // Debounced save function
     const saveProductsDebounced = useRef(
@@ -21,12 +21,12 @@ export const useProducts = () => {
         const loadProducts = async () => {
             // 1. Load from LocalStorage first (Fast render)
             const storedProducts = safeLocalStorage.getItem('rayburger_products');
-            let initialProducts = SAMPLE_PRODUCTS;
+            let currentProducts = SAMPLE_PRODUCTS;
 
             if (storedProducts) {
                 try {
-                    initialProducts = JSON.parse(storedProducts);
-                    setProducts(initialProducts);
+                    currentProducts = JSON.parse(storedProducts);
+                    setProducts(currentProducts);
                 } catch (error) {
                     console.error("Failed to parse products", error);
                     setProducts(SAMPLE_PRODUCTS);
@@ -45,10 +45,13 @@ export const useProducts = () => {
                         .select('*');
 
                     if (!error && data && data.length > 0) {
-                        // Merge or replace? For simplicity and consistency: Replace.
-                        // Ideally we should merge if user has local pending changes, but for clients, Cloud is Truth.
-                        setProducts(data as Product[]);
-                        safeLocalStorage.setItem('rayburger_products', JSON.stringify(data));
+                        const cloudProducts = data as Product[];
+
+                        // Safely merge cloud products or use them if they are valid
+                        setProducts(cloudProducts);
+                        safeLocalStorage.setItem('rayburger_products', JSON.stringify(cloudProducts));
+                    } else if (data && data.length === 0) {
+                        console.warn("☁️ Cloud menu is empty. Keeping local menu for safety.");
                     }
                 }
             } catch (err) {
@@ -57,12 +60,11 @@ export const useProducts = () => {
         };
 
         loadProducts();
-    }, []);
+    }, [replaceInCloud]);
 
     useEffect(() => {
         const handleStorageChange = (e: Event) => {
             const customEvent = e as CustomEvent;
-            // IGNORE if the update came from THIS hook instance
             if (customEvent.detail?.source === 'useProducts') return;
 
             if (customEvent.type === 'rayburger_products_updated') {
@@ -84,33 +86,39 @@ export const useProducts = () => {
     const saveProducts = useCallback((newProducts: Product[]) => {
         setProducts(newProducts);
         saveProductsDebounced(newProducts);
-        // Add a flag to indicate this update is internal
         window.dispatchEvent(new CustomEvent('rayburger_products_updated', { detail: { source: 'useProducts' } }));
     }, [saveProductsDebounced]);
 
     const addProduct = useCallback(async (product: Product) => {
         const newProducts = [...products, product];
         saveProducts(newProducts);
-        await pushToCloud('rb_products', newProducts);
-    }, [products, saveProducts, pushToCloud]);
+        await replaceInCloud('rb_products', newProducts);
+    }, [products, saveProducts, replaceInCloud]);
 
     const updateProduct = useCallback(async (updatedProduct: Product) => {
         const newProducts = products.map(p => p.id === updatedProduct.id ? updatedProduct : p);
         saveProducts(newProducts);
-        await pushToCloud('rb_products', newProducts);
-    }, [products, saveProducts, pushToCloud]);
+        await replaceInCloud('rb_products', newProducts);
+    }, [products, saveProducts, replaceInCloud]);
 
     const deleteProduct = useCallback(async (productId: number) => {
         const newProducts = products.filter(p => p.id !== productId);
         saveProducts(newProducts);
-        await pushToCloud('rb_products', newProducts);
-    }, [products, saveProducts, pushToCloud]);
+        await replaceInCloud('rb_products', newProducts);
+    }, [products, saveProducts, replaceInCloud]);
 
-    const resetToSample = useCallback(() => {
-        if (confirm('¿Estás seguro de que quieres borrar el menú actual y cargar el menú oficial del código? Se perderán los cambios manuales.')) {
+    const resetToSample = useCallback(async () => {
+        if (confirm('¿Estás seguro de que quieres borrar el menú actual y cargar el menú oficial del código? Se perderán los cambios manuales y se sobrescribirá la nube.')) {
             saveProducts(SAMPLE_PRODUCTS);
+            const { error } = await replaceInCloud('rb_products', SAMPLE_PRODUCTS);
+
+            if (error) {
+                alert(`❌ Error al limpiar la nube: ${error}. Los cambios se guardaron solo localmente.`);
+            } else {
+                alert('✅ Menú Oficial restaurado y NUBE LIMPIA. El "menú loco" ha sido eliminado.');
+            }
         }
-    }, [saveProducts]);
+    }, [saveProducts, replaceInCloud]);
 
     return {
         products,

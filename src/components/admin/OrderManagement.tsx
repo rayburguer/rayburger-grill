@@ -11,10 +11,11 @@ interface OrderManagementProps {
     updateGuestOrders: (updatedOrders: Order[]) => void;
     products: Product[];
     updateProduct: (p: Product) => void;
+    highlightOrderId?: string; // For deep linking
 }
 
 export const OrderManagement: React.FC<OrderManagementProps> = ({
-    registeredUsers, updateUsers, guestOrders, updateGuestOrders, products, updateProduct
+    registeredUsers, updateUsers, guestOrders, updateGuestOrders, products, updateProduct, highlightOrderId
 }) => {
     const { confirmOrderRewards, rejectOrder } = useLoyalty();
     const [searchTerm, setSearchTerm] = useState('');

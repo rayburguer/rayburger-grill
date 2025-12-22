@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react'; // FORCE REBUILD TIMESTAMP 2025-12-22
 import { ShoppingCart, LogIn, LogOut, UserCircle, Clock, CheckCircle, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Order } from '../../types';
@@ -12,6 +13,7 @@ interface HeaderProps {
     onOpenProfile: () => void;
     onOpenAdmin?: () => void;
     onOpenLeaderboard?: () => void;
+    onOpenRoulette?: () => void;
     activeOrder?: Order | null;
 }
 
@@ -22,8 +24,10 @@ const Header: React.FC<HeaderProps> = ({
     onOpenRegister,
     onOpenLogin,
     onLogout,
+    onOpenProfile,
     onOpenAdmin,
     onOpenLeaderboard,
+    onOpenRoulette,
     activeOrder
 }) => {
     const baseButtonClasses = "group px-5 py-2 rounded-xl text-sm font-bold transition-all duration-300 transform hover:scale-105 flex items-center justify-center whitespace-nowrap active:scale-95";
@@ -71,6 +75,15 @@ const Header: React.FC<HeaderProps> = ({
                     <span className="sr-only sm:not-sr-only text-[10px] uppercase tracking-tighter">Ranking</span>
                 </button>
 
+                <button
+                    className={`${secondaryButtonClasses} flex !bg-purple-600/10 !border-purple-500/40 px-2 sm:px-4 hover:!bg-purple-600/20 active:scale-90 animate-pulse`}
+                    title="Girar Ruleta de Premios"
+                    onClick={onOpenRoulette}
+                >
+                    <span className="text-lg mr-1 filter drop-shadow">🎰</span>
+                    <span className="sr-only sm:not-sr-only text-[10px] uppercase tracking-tighter text-purple-400 font-bold">Ruleta</span>
+                </button>
+
                 {currentUser ? (
                     <div className="flex items-center space-x-2">
                         <AnimatePresence>
@@ -99,17 +112,22 @@ const Header: React.FC<HeaderProps> = ({
                         >
                             <UserCircle className="w-5 h-5 md:mr-1 text-orange-400" aria-hidden="true" />
                             <div className="hidden md:block">
-                                <span className="sr-only">Perfil de </span>Hola, {currentUser.name.split(' ')[0]}
+                                <span className="sr-only">Perfil de </span>
+                                <span className="flex flex-col items-start leading-none gap-0.5">
+                                    <span className="text-xs">Hola, {currentUser.name.split(' ')[0]}</span>
+                                    {currentUser.role === 'admin' && <span className="text-[9px] text-purple-400 font-black uppercase tracking-widest bg-purple-900/50 px-1 rounded">ADMIN MODE</span>}
+                                </span>
                             </div>
                         </button>
 
                         {currentUser.role === 'admin' && onOpenAdmin && (
                             <button
-                                className={`${primaryButtonClasses} px-2 md:px-5 border-orange-400`}
+                                className={`${primaryButtonClasses} bg-purple-600 hover:bg-purple-700 border-purple-400 !px-4 shadow-[0_0_15px_rgba(147,51,234,0.5)]`}
                                 onClick={onOpenAdmin}
+                                title="Panel de Administrador"
                             >
-                                <CheckCircle className="w-5 h-5 md:mr-1" />
-                                <span className="hidden md:inline">Panel Admin</span>
+                                <CheckCircle className="w-5 h-5 mr-1.5" />
+                                <span className="font-black tracking-wide text-xs">ADMIN</span>
                             </button>
                         )}
 

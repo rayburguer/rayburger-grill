@@ -13,7 +13,6 @@ import CheckoutModal from './components/checkout/CheckoutModal';
 import RegisterModal from './components/auth/RegisterModal';
 import LoginModal from './components/auth/LoginModal';
 import UserProfileModal from './components/user/UserProfileModal';
-import RecommendationSection from './components/recommendations/RecommendationSection';
 import AdminDashboard from './components/admin/AdminDashboard';
 import HeroSection from './components/layout/HeroSection';
 import FAQSection from './components/layout/FAQSection';
@@ -24,8 +23,8 @@ import Toast from './components/ui/Toast';
 import FloatingCart from './components/ui/FloatingCart';
 import InstallPrompt from './components/ui/InstallPrompt';
 import RouletteModal from './components/loyalty/RouletteModal';
-import { SuggestionSection } from './components/sections/SuggestionSection';
 import { RankingSection } from './components/sections/RankingSection';
+import { IngredientVoting } from './components/voting/IngredientVoting';
 
 // Hooks
 import { useCart } from './hooks/useCart';
@@ -34,6 +33,7 @@ import { useProducts } from './hooks/useProducts';
 import { useLoyalty } from './hooks/useLoyalty';
 import { useSurveys } from './hooks/useSurveys';
 import { useSettings } from './hooks/useSettings';
+import { useCloudSync } from './hooks/useCloudSync';
 
 // Data & Config
 import { ALL_CATEGORIES_KEY, SKIP_LINK_ID } from './config/constants';
@@ -81,6 +81,20 @@ const App: React.FC = () => {
     const [isToastVisible, setIsToastVisible] = useState<boolean>(false);
     const [toastMessage, setToastMessage] = useState<string>('');
 
+    // Accordion State
+    const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
+        'Hamburguesas': true,
+        'Perros': true,
+        'Combos': false,
+        'Bebidas': false,
+        'Salsas': false,
+        'Extras': false
+    });
+
+    const toggleCategory = useCallback((cat: string) => {
+        setExpandedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
+    }, []);
+
     // Hooks usage
     const { cart, addToCart, removeFromCart, updateCartItemQuantity, clearCart, totalUsd } = useCart();
     const { currentUser, registeredUsers, login, logout, register, updateUsers } = useAuth();
@@ -88,6 +102,7 @@ const App: React.FC = () => {
     const { tasaBs, updateTasa, guestOrders, addGuestOrder, updateGuestOrders } = useSettings();
     const { addSurvey } = useSurveys();
     const { processOrderRewards } = useLoyalty();
+    const { migrateAllToCloud } = useCloudSync();
 
     // Toast Handlers
     const showToast = useCallback((message: string) => {
@@ -143,6 +158,35 @@ const App: React.FC = () => {
     const openAdminDashboard = useCallback(() => setIsAdminDashboardOpen(true), []);
     const closeAdminDashboard = useCallback(() => setIsAdminDashboardOpen(false), []);
 
+    // Deep Link Detection: Auto-open Admin if URL has admin params
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const adminParam = params.get('admin');
+        const orderIdParam = params.get('orderId');
+
+        if (adminParam === 'orders' && orderIdParam) {
+            // Open Admin Dashboard automatically
+            setIsAdminDashboardOpen(true);
+            // Clean URL params after opening (optional, for cleaner UX)
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, []);
+
+    // Auto-sync to cloud every 5 minutes (300000ms) for data protection
+    useEffect(() => {
+        const syncInterval = setInterval(async () => {
+            try {
+                await migrateAllToCloud();
+                // console.debug('✅ Auto-sync completado');
+            } catch (error) {
+                console.error('❌ Error en auto-sync:', error);
+            }
+        }, 5 * 60 * 1000); // 5 minutes
+
+        // Cleanup on unmount
+        return () => clearInterval(syncInterval);
+    }, [migrateAllToCloud]);
+
     const handleLogout = useCallback(() => {
         logout();
         showToast("Sesión cerrada. ¡Hasta pronto!");
@@ -164,17 +208,90 @@ const App: React.FC = () => {
             closeLogin();
             showToast("¡Bienvenido de nuevo!");
         } else {
+            // showToast("Credenciales inválidas."); // Removed to let Modal handle it inline? Or keep both? Keeping both is fine, but inline is better. 
+            // Actually, let's keep toast as backup, but return success so modal knows to shake/error.
             showToast("Credenciales inválidas.");
         }
+        return success;
     }, [login, closeLogin, showToast]);
 
-    const handleOrderConfirmed = useCallback((buyerEmail: string, buyerName?: string, deliveryInfo?: { method: 'delivery' | 'pickup', fee: number, phone: string }) => {
+    const handleOrderConfirmed = useCallback(async (buyerEmail: string, buyerName?: string, deliveryInfo?: { method: 'delivery' | 'pickup', fee: number, phone: string }, newRegistrationData?: { password: string }, pointsUsed: number = 0) => {
         let message = "¡Pedido recibido! Pronto nos pondremos en contacto.";
+        let finalUser = currentUser;
+
+        // SEAMLESS REGISTRATION LOGIC
+        if (!currentUser && newRegistrationData && buyerName && deliveryInfo?.phone) {
+            const newUser: User = {
+                name: buyerName,
+                email: buyerEmail,
+                phone: deliveryInfo.phone,
+                passwordHash: newRegistrationData.password,
+                referralCode: `RB-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+                points: 50, // Welcome Bonus included in register() usually, but safe to set
+                loyaltyTier: 'Bronze',
+                role: 'customer',
+                orders: [],
+                lastPointsUpdate: Date.now()
+            };
+
+            // Attempt to register
+            const success = await register(newUser);
+            if (success) {
+                finalUser = newUser; // Use the new user for rewards processing
+                showToast("🎉 ¡Cuenta creada! Te has ganado $50 de bienvenida.");
+            } else {
+                showToast("⚠️ No se pudo crear la cuenta (¿Email usado?), pero procesaremos tu pedido.");
+            }
+        }
+
         let currentOrder: any;
 
         const result = processOrderRewards(buyerEmail, cart, totalUsd, registeredUsers, deliveryInfo);
 
-        if (!result) {
+        // If we have a user (either existing or newly registered)
+        if (finalUser) {
+            // Re-process rewards with the correct user context if needed, 
+            // but processOrderRewards likely uses the email to find the user in registeredUsers.
+            // Since register() updates registeredUsers asynchronously, we might need to rely on the fact 
+            // that 'registeredUsers' in this closure might be stale.
+            // HOWEVER, processOrderRewards takes 'registeredUsers' as arg.
+            // If we just registered, 'registeredUsers' state here might not have the new user yet 
+            // because React state updates in the next render cycle.
+
+            // WORKAROUND: Create a temporary updated list for the calculation
+            let currentUsersList = registeredUsers;
+            if (!currentUser && finalUser) { // If we just registered
+                currentUsersList = [...registeredUsers, finalUser];
+            }
+
+            const resultWithNewUser = processOrderRewards(buyerEmail, cart, totalUsd, currentUsersList, deliveryInfo);
+
+            if (resultWithNewUser) {
+                const { updatedUsers, orderSummary } = resultWithNewUser;
+
+                // DEDUCT POINTS IF USED
+                let finalUpdatedUsers = updatedUsers;
+                if (pointsUsed > 0) {
+                    finalUpdatedUsers = updatedUsers.map(u => {
+                        if (u.email === buyerEmail) {
+                            return { ...u, points: Math.max(0, u.points - pointsUsed) };
+                        }
+                        return u;
+                    });
+                    showToast(`💎 ${pointsUsed} puntos canjeados = $${(pointsUsed / 100).toFixed(2)} de descuento`);
+                }
+
+                updateUsers(finalUpdatedUsers);
+                const buyer = finalUpdatedUsers.find(u => u.email === buyerEmail);
+                if (buyer && buyer.orders.length > 0) {
+                    currentOrder = buyer.orders[buyer.orders.length - 1];
+                    const link = generateWhatsAppLink(currentOrder, buyer, cart);
+                    window.open(link, '_blank');
+                }
+                showToast(message + "\n🎁 " + orderSummary.pointsEarned + " Puntos procesados.");
+            }
+        } else {
+            // GUEST FLOW (Standard)
             currentOrder = {
                 orderId: generateUuid(),
                 timestamp: Date.now(),
@@ -200,16 +317,6 @@ const App: React.FC = () => {
             const link = generateWhatsAppLink(currentOrder, guestUser, cart);
             window.open(link, '_blank');
             showToast(message);
-        } else {
-            const { updatedUsers, orderSummary } = result;
-            updateUsers(updatedUsers);
-            const buyer = updatedUsers.find(u => u.email === buyerEmail);
-            if (buyer && buyer.orders.length > 0) {
-                currentOrder = buyer.orders[buyer.orders.length - 1];
-                const link = generateWhatsAppLink(currentOrder, buyer, cart);
-                window.open(link, '_blank');
-            }
-            showToast(message + "\n🎁 " + orderSummary.pointsEarned + " Puntos reservados.");
         }
 
         clearCart();
@@ -220,7 +327,7 @@ const App: React.FC = () => {
         }
         setLastOrderId('recent-order');
         setTimeout(() => setIsSurveyModalOpen(true), 1500);
-    }, [cart, totalUsd, registeredUsers, updateUsers, clearCart, closeCheckout, showToast, processOrderRewards, addGuestOrder]);
+    }, [cart, totalUsd, registeredUsers, updateUsers, clearCart, closeCheckout, showToast, processOrderRewards, addGuestOrder, register, currentUser]);
 
     useEffect(() => {
         const timer = setTimeout(() => setIsLoadingProducts(false), 800);
@@ -280,16 +387,6 @@ const App: React.FC = () => {
         return products.filter(p => p.category === selectedCategory);
     }, [products, searchTerm, selectedCategory]);
 
-    const MemoizedRecommendationSection = useMemo(() => (
-        <RecommendationSection
-            currentUser={currentUser}
-            userOrders={currentUser?.orders || []}
-            onShowToast={showToast}
-            allProducts={products}
-            onSelectProduct={handleSelectProduct}
-        />
-    ), [currentUser, products, showToast]);
-
     return (
         <div className="min-h-screen bg-gray-900 text-white flex flex-col">
             <a href={`#${SKIP_LINK_ID}`} className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:bg-orange-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-md">Saltar al contenido principal</a>
@@ -304,6 +401,7 @@ const App: React.FC = () => {
                 onOpenProfile={openUserProfileModal}
                 onOpenAdmin={openAdminDashboard}
                 onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
+                onOpenRoulette={() => setIsRouletteOpen(true)}
                 activeOrder={activeOrder}
             />
 
@@ -319,7 +417,7 @@ const App: React.FC = () => {
                             <h2 className="text-2xl font-black text-white italic uppercase">Lo Más Vendido</h2>
                         </div>
                         <RankingSection products={products} onSelectProduct={handleSelectProduct} />
-                        {MemoizedRecommendationSection}
+                        {/* RecommendationSection REMOVED - Burger Ideal now only in Header for consistency */}
                     </>
                 )}
 
@@ -377,19 +475,78 @@ const App: React.FC = () => {
                             )}
 
                             {(!searchTerm && selectedCategory === ALL_CATEGORIES_KEY) && (
-                                <div className="space-y-16">
+                                <div className="space-y-6">
                                     {categories.filter(c => c !== ALL_CATEGORIES_KEY).map((categoryName) => {
                                         const categoryProducts = products.filter(p => p.category === categoryName);
                                         if (categoryProducts.length === 0) return null;
+
+                                        const isExpanded = expandedCategories[categoryName] ?? true;
+                                        const isMini = categoryName === 'Extras' || categoryName === 'Salsas' || categoryName === 'Bebidas';
+
                                         return (
-                                            <motion.section key={categoryName} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-                                                <div className="flex items-center gap-4 mb-6">
-                                                    <h2 className="text-3xl font-black text-white italic uppercase">{categoryName}</h2>
-                                                    <div className="h-1 flex-1 bg-gray-800 rounded-full"><div className="h-full w-20 bg-orange-600"></div></div>
-                                                </div>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                                    {categoryProducts.map((product) => <ProductCard key={product.id} product={product} onOpenProductDetail={openProductDetail} />)}
-                                                </div>
+                                            <motion.section
+                                                key={categoryName}
+                                                className="bg-gray-900/40 backdrop-blur-md rounded-3xl border border-gray-800/50 overflow-hidden transition-all duration-300 hover:border-orange-500/20"
+                                                initial={{ opacity: 0, y: 20 }}
+                                                whileInView={{ opacity: 1, y: 0 }}
+                                                viewport={{ once: true }}
+                                            >
+                                                {/* Header colapsable */}
+                                                <button
+                                                    onClick={() => toggleCategory(categoryName)}
+                                                    className="w-full flex items-center justify-between p-6 hover:bg-white/5 transition-colors group"
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">{categoryName}</h2>
+                                                        <span className="bg-orange-600 text-[10px] font-black px-2 py-0.5 rounded-full text-white">
+                                                            {categoryProducts.length}
+                                                        </span>
+                                                    </div>
+                                                    <div className={`p-2 rounded-full bg-gray-800 group-hover:bg-orange-600 transition-all duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                                                        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </div>
+                                                </button>
+
+                                                <AnimatePresence>
+                                                    {isExpanded && (
+                                                        <motion.div
+                                                            initial={{ height: 0, opacity: 0 }}
+                                                            animate={{ height: "auto", opacity: 1 }}
+                                                            exit={{ height: 0, opacity: 0 }}
+                                                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                                                            className="px-6 pb-8"
+                                                        >
+                                                            {/* Linea divisoria */}
+                                                            <div className="h-px w-full bg-gradient-to-r from-orange-600/50 to-transparent mb-6"></div>
+
+                                                            {isMini ? (
+                                                                // CHIPS LAYOUT (For Extras, Sauces, Drinks)
+                                                                <div className="flex flex-wrap gap-3">
+                                                                    {categoryProducts.map((product) => (
+                                                                        <button
+                                                                            key={product.id}
+                                                                            onClick={() => openProductDetail(product)}
+                                                                            className="flex items-center gap-3 bg-gray-800/50 hover:bg-orange-600 border border-gray-700 hover:border-orange-400 rounded-2xl pl-2 pr-4 py-2 transition-all group/chip"
+                                                                        >
+                                                                            <img src={product.image} alt={product.name} className="w-10 h-10 rounded-xl object-cover" />
+                                                                            <div className="text-left">
+                                                                                <p className="font-bold text-white text-sm leading-tight">{product.name}</p>
+                                                                                <p className="text-orange-400 group-hover/chip:text-white text-xs font-black">${product.basePrice_usd.toFixed(2)}</p>
+                                                                            </div>
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                // STANDARD GRID LAYOUT
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                                                    {categoryProducts.map((product) => <ProductCard key={product.id} product={product} onOpenProductDetail={openProductDetail} />)}
+                                                                </div>
+                                                            )}
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
                                             </motion.section>
                                         );
                                     })}
@@ -399,7 +556,8 @@ const App: React.FC = () => {
                     )}
                 </div>
 
-                <SuggestionSection />
+                {/* SuggestionSection REMOVED - Keeping only IngredientVoting for cleaner UX */}
+                <IngredientVoting />
                 <div className="mt-20 w-full bg-gradient-to-t from-black/50 to-transparent pt-10 pb-20"><FAQSection /></div>
             </main>
 
@@ -421,10 +579,37 @@ const App: React.FC = () => {
             />
             <LoginModal isOpen={isLoginModalOpen} onClose={closeLogin} onLogin={handleLoginSubmit} onOpenRegister={openRegister} />
             <ProductDetailModal isOpen={isProductDetailModalOpen} onClose={closeProductDetail} product={selectedProductForDetail} onAddToCart={handleAddToCart} />
-            <UserProfileModal isOpen={isUserProfileModalOpen} onClose={closeUserProfileModal} user={currentUser} onShowToast={showToast} onReorder={handleReorder} />
+            <UserProfileModal
+                isOpen={isUserProfileModalOpen}
+                onClose={closeUserProfileModal}
+                user={currentUser}
+                onShowToast={showToast}
+                onReorder={handleReorder}
+                onClaimAdmin={() => {
+                    if (!currentUser) return;
+                    // FORCE IMMEDIATE STORAGE UPDATE (Bypassing debounce race conditions)
+                    const upgradedUser: User = { ...currentUser, role: 'admin' };
+                    const updatedList = registeredUsers.map(u => u.email === currentUser.email ? upgradedUser : u);
+
+                    try {
+                        localStorage.setItem('rayburger_registered_users', JSON.stringify(updatedList));
+                        localStorage.setItem('rayburger_current_user', JSON.stringify(upgradedUser));
+
+                        // Update React State as well just in case
+                        updateUsers(updatedList);
+
+                        showToast("👑 ¡Larga vida al Rey! Eres Admin. (Recargando...)");
+                        setTimeout(() => window.location.reload(), 500);
+                    } catch (e) {
+                        console.error("Failed to force-save admin upgrade", e);
+                        showToast("Error al guardar privilegios. Intenta de nuevo.");
+                    }
+                }}
+            />
             <AdminDashboard
                 isOpen={isAdminDashboardOpen} onClose={closeAdminDashboard} registeredUsers={registeredUsers}
                 updateUsers={updateUsers} tasaBs={tasaBs} onUpdateTasa={updateTasa} guestOrders={guestOrders} updateGuestOrders={updateGuestOrders}
+                onShowToast={showToast}
             />
             <SurveyModal isOpen={isSurveyModalOpen} onClose={() => setIsSurveyModalOpen(false)} onSubmit={handleSurveySubmit} orderId={lastOrderId} userId={currentUser?.email} />
             <LeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} users={registeredUsers} />

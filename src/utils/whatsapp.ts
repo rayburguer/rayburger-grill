@@ -53,6 +53,10 @@ export const generateWhatsAppLink = (
     message += `\n\n🛰️ *Rastreo en Vivo:* Puedo ver el progreso de mi pedido en tiempo real en la Web (Cocina -> Camino -> Entregado).`;
     message += `\n\n*(Por favor indícame los pasos para el pago)*`;
 
+    // Deep link para gestión rápida desde WhatsApp
+    const deepLink = `https://pruebaloca.vercel.app?admin=orders&orderId=${order.orderId}`;
+    message += `\n\n━━━━━━━━━━━━━━━━━━\n📱 *GESTIONAR PEDIDO*\n${deepLink}\n━━━━━━━━━━━━━━━━━━`;
+
     const encodedMessage = encodeURIComponent(message);
     return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodedMessage}`;
 };

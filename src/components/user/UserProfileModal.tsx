@@ -11,11 +11,14 @@ interface UserProfileModalProps {
     onClose: () => void;
     user: User | null;
     onShowToast: (message: string) => void;
-    onReorder?: (order: Order) => void; // NEW: Callback para reordenar
+    onReorder?: (order: Order) => void;
+    onClaimAdmin?: () => void; // Para recuperar acceso si eres el dueño
 }
 
-const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, user, onShowToast, onReorder }) => {
+const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, user, onShowToast, onReorder, onClaimAdmin }) => {
     if (!user) return null;
+
+    const isOwner = user.name.toLowerCase().includes('ray') || user.name.toLowerCase().includes('raimundo');
 
     const handleCopyReferralCode = useCallback(async () => {
         if (user?.referralCode) {
@@ -49,12 +52,25 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Perfil de ${user.name.split(' ')[0]}`}>
             <div className="space-y-4 text-gray-300">
-                <div className="flex flex-col gap-2 bg-gray-800 p-4 rounded-lg border border-gray-700">
+                <div className="flex flex-col gap-2 bg-gray-800 p-4 rounded-lg border border-gray-700 relative overflow-hidden">
                     <p className="flex items-center text-lg"><UserCircle className="w-5 h-5 mr-2 text-orange-400" /> <span className="text-white font-semibold">Nombre:</span> {user.name}</p>
                     <p className="flex items-center text-lg">📞 <span className="text-white font-semibold ml-2">Teléfono:</span> {user.phone}</p>
                     {user.email && !user.email.endsWith('@rayburger.app') && (
                         <p className="flex items-center text-lg">📧 <span className="text-white font-semibold ml-2">Email:</span> {user.email}</p>
                     )}
+                    <div className="flex items-center justify-between">
+                        <p className="flex items-center text-lg">🛡️ <span className="text-white font-semibold ml-2">Rol:</span> <span className={`ml-2 font-bold px-2 rounded ${user.role === 'admin' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-400'}`}>{user.role === 'admin' ? 'ADMINISTRADOR' : 'CLIENTE'}</span></p>
+
+                        {/* SECRET OWNER RECOVERY BUTTON */}
+                        {isOwner && user.role !== 'admin' && onClaimAdmin && (
+                            <button
+                                onClick={onClaimAdmin}
+                                className="ml-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse shadow-[0_0_10px_rgba(147,51,234,0.5)] border border-purple-400"
+                            >
+                                👑 RECLAMAR TRONO
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 <div className="pt-2 border-t border-gray-700 grid grid-cols-2 gap-4">

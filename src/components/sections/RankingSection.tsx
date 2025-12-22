@@ -9,10 +9,18 @@ interface RankingSectionProps {
 }
 
 export const RankingSection: React.FC<RankingSectionProps> = ({ products, onSelectProduct }) => {
-    const topProducts = [...products]
+    // Logic to select "Protagonist" products (Hamburgers)
+    // First, try to get top rated products
+    let topProducts = [...products]
         .filter(p => p.rating && p.ratingCount)
         .sort((a, b) => ((b.rating || 0) * (b.ratingCount || 0)) - ((a.rating || 0) * (a.ratingCount || 0)))
         .slice(0, 3);
+
+    // FALLBACK: If no ratings (fresh deploy), force-show iconic BURGERS
+    if (topProducts.length === 0) {
+        // IDs: 1 (Clásica), 2 (Ray Bacon), 7 (Il Capo)
+        topProducts = products.filter(p => [1, 2, 7].includes(p.id));
+    }
 
     if (topProducts.length === 0) return null;
 

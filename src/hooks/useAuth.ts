@@ -3,10 +3,12 @@ import { User } from '../types';
 import { calculateLoyaltyTier } from '../utils/helpers';
 import { debounce, safeLocalStorage } from '../utils/debounce';
 import { hashPassword, isLegacyPassword } from '../utils/security';
+import { useCloudSync } from './useCloudSync';
 
 export const useAuth = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
+    const { pushToCloud } = useCloudSync();
 
     // Flag to prevent recursive updates between sync cycles
     const isUpdatingRef = useRef(false);
@@ -46,7 +48,25 @@ export const useAuth = () => {
             if (storedUsers) {
                 const parsedUsers = JSON.parse(storedUsers);
                 if (Array.isArray(parsedUsers)) {
-                    setRegisteredUsers(parsedUsers.map(migrateUser));
+                    let usersList = parsedUsers.map(migrateUser);
+
+                    // SEED ADMIN IF MISSING (Self-Healing)
+                    const adminExists = usersList.some(u => u.role === 'admin');
+                    if (!adminExists) {
+                        usersList.push({
+                            name: 'Administrador Ray',
+                            email: 'admin@rayburger.com',
+                            passwordHash: 'raimundo27811341', // Legacy plain text, will auto-hash on login
+                            phone: '0000000000',
+                            role: 'admin',
+                            points: 1000,
+                            loyaltyTier: 'Diamond',
+                            referralCode: 'ADMIN-MASTER',
+                            orders: [],
+                            lastPointsUpdate: Date.now()
+                        });
+                    }
+                    setRegisteredUsers(usersList);
                 }
             }
 
@@ -210,15 +230,25 @@ export const useAuth = () => {
             }
         }
 
-        setRegisteredUsers(prevUsers => [...prevUsers, newUser]);
+        const updatedList = [...registeredUsers, newUser];
+        setRegisteredUsers(updatedList);
         setCurrentUser(newUser);
         saveCurrentUserDebounced(newUser);
-        return true;
-    }, [registeredUsers, saveCurrentUserDebounced]);
 
-    const updateUsers = useCallback((users: User[]) => {
+        // Instant sync for new user
+        const usersToSync = updatedList.map(u => ({ ...u, id: u.email }));
+        await pushToCloud('rb_users', usersToSync);
+
+        return true;
+    }, [registeredUsers, saveCurrentUserDebounced, pushToCloud]);
+
+
+    const updateUsers = useCallback(async (users: User[]) => {
         setRegisteredUsers(users);
-    }, []);
+        // Instant sync for critical user data (points, roles, etc)
+        const usersToSync = users.map(u => ({ ...u, id: u.email }));
+        await pushToCloud('rb_users', usersToSync);
+    }, [pushToCloud]);
 
     return {
         currentUser,
