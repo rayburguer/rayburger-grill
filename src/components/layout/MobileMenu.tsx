@@ -45,6 +45,7 @@ const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose, onOpenLeaderbo
 
                         {/* Menu Items */}
                         <div className="p-4 space-y-2">
+                            {/* LEADERBOARD HIDDEN FOR PHASE 1 LAUNCH
                             <button
                                 onClick={() => {
                                     onOpenLeaderboard();
@@ -58,6 +59,7 @@ const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose, onOpenLeaderbo
                                     <p className="text-sm text-gray-400 group-hover:text-gray-200">Ver ranking de puntos</p>
                                 </div>
                             </button>
+                            */}
 
                             <button
                                 onClick={() => {

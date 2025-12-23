@@ -80,6 +80,7 @@ const Header: React.FC<HeaderProps> = ({
 
                 {/* Desktop: Ranking y Ruleta */}
                 <div className="hidden lg:flex items-center space-x-2">
+                    {/* LEADERBOARD HIDDEN FOR PHASE 1 LAUNCH
                     <button
                         className={`${secondaryButtonClasses} flex !bg-orange-600/10 !border-orange-500/40 px-2 sm:px-4 hover:!bg-orange-600/20 active:scale-90`}
                         title="Ver Ranking La Carrera"
@@ -88,6 +89,7 @@ const Header: React.FC<HeaderProps> = ({
                         <Trophy className="w-5 h-5 sm:mr-1 text-orange-500 drop-shadow-[0_0_8px_rgba(234,88,12,0.5)]" />
                         <span className="sr-only sm:not-sr-only text-[10px] uppercase tracking-tighter">Ranking</span>
                     </button>
+                    */}
 
                     <button
                         className={`${secondaryButtonClasses} flex !bg-purple-600/10 !border-purple-500/40 px-2 sm:px-4 hover:!bg-purple-600/20 active:scale-90 animate-pulse`}

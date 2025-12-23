@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useCloudSync } from '../../hooks/useCloudSync';
 import { useSuggestions } from '../../hooks/useSuggestions';
-import { OrderManagement } from './OrderManagement';
+import { QuickPOS } from './QuickPOS';
 import { AdminBI } from './AdminBI';
 import { CashRegisterReport } from './CashRegisterReport';
 import { persistence } from '../../utils/persistence';
@@ -38,7 +38,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const { getStats } = useSurveys();
     const { isSyncing } = useCloudSync();
     const [password, setPassword] = useState('');
-    const [activeTab, setActiveTab] = useState<'stats' | 'cashregister' | 'products' | 'orders' | 'redeem' | 'customers' | 'suggestions' | 'cloud'>('stats');
+    const [activeTab, setActiveTab] = useState<'quick_pos' | 'stats' | 'cashregister' | 'products' | 'orders' | 'redeem' | 'customers' | 'suggestions' | 'cloud'>('quick_pos');
     const [redeemSearch, setRedeemSearch] = useState('');
     const [redeemAmount, setRedeemAmount] = useState<number>(0);
 
@@ -155,13 +155,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 {/* Navbar */}
                 <div className="flex border-b border-gray-700 bg-gray-800/50 overflow-x-auto hide-scrollbar">
-                    {(['stats', 'cashregister', 'products', 'orders', 'redeem', 'customers', 'suggestions', 'cloud'] as const).map(tab => (
+                    {(['quick_pos', 'stats', 'cashregister', 'products', 'orders', 'redeem', 'customers', 'suggestions', 'cloud'] as const).map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
                             className={`flex-none sm:flex-1 px-8 py-5 text-center font-bold tracking-tight transition-all whitespace-nowrap capitalize border-b-2 ${activeTab === tab ? 'text-orange-500 border-orange-500 bg-orange-500/5' : 'text-gray-400 border-transparent hover:text-white'}`}
                         >
                             <div className="flex flex-col items-center gap-1">
+                                {tab === 'quick_pos' && <div className="bg-orange-600 text-white p-1 rounded-full mb-1"><Plus size={16} /></div>}
                                 {tab === 'stats' && <BarChart3 className="w-5 h-5 mb-1" />}
                                 {tab === 'cashregister' && <DollarSign className="w-5 h-5 mb-1" />}
                                 {tab === 'products' && <Edit className="w-5 h-5 mb-1" />}
@@ -170,16 +171,68 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 {tab === 'customers' && <Search className="w-5 h-5 mb-1" />}
                                 {tab === 'suggestions' && <Lightbulb className="w-5 h-5 mb-1" />}
                                 {tab === 'cloud' && <Cloud className="w-5 h-5 mb-1 text-blue-400" />}
-                                <span className="text-[10px] uppercase font-black">{tab === 'stats' ? 'Analytics' : tab === 'suggestions' ? 'Ideas' : tab === 'cashregister' ? 'CAJA' : tab}</span>
+                                <span className="text-[10px] uppercase font-black">
+                                    {tab === 'quick_pos' ? 'POS RÁPIDO' : tab === 'stats' ? 'Analytics' : tab === 'suggestions' ? 'Ideas' : tab === 'cashregister' ? 'CAJA' : tab}
+                                </span>
                             </div>
                         </button>
                     ))}
                 </div>
 
                 {/* Content */}
-                <div className="p-8 flex-1 overflow-y-auto max-h-[75vh]">
+                <div className="p-0 flex-1 overflow-y-auto max-h-[75vh]">
+                    {activeTab === 'quick_pos' && (
+                        <QuickPOS
+                            products={products}
+                            tasaBs={tasaBs}
+                            onProcessOrder={async (orderData) => {
+                                const newOrder: Order = {
+                                    ...orderData,
+                                    orderId: `POS-${Date.now()}`,
+                                    timestamp: Date.now(),
+                                    pointsEarned: Math.floor(orderData.totalUsd), // 1 point per USD
+                                    status: 'approved'
+                                };
+
+                                // Quick Registration Logic
+                                if (orderData.customerPhone) {
+                                    const existingUser = registeredUsers.find(u => u.phone === orderData.customerPhone);
+                                    if (existingUser) {
+                                        // Update existing user points
+                                        const updatedUser = {
+                                            ...existingUser,
+                                            points: existingUser.points + newOrder.pointsEarned,
+                                            orders: [...existingUser.orders, newOrder]
+                                        };
+                                        updateUsers(registeredUsers.map(u => u.email === existingUser.email ? updatedUser : u));
+                                        onShowToast(`🌟 ${newOrder.pointsEarned} puntos sumados a ${existingUser.name}`);
+                                    } else {
+                                        // Create new Quick User
+                                        const newUser: User = {
+                                            email: `${orderData.customerPhone}@pos.ray`,
+                                            phone: orderData.customerPhone,
+                                            name: 'Cliente Nuevo',
+                                            role: 'customer',
+                                            loyaltyTier: 'Bronze',
+                                            points: 50 + newOrder.pointsEarned, // Welcome bonus + purchase
+                                            orders: [newOrder],
+                                            passwordHash: '1234', // Temp password
+                                            referralCode: `POS-${Date.now()}`
+                                        };
+                                        updateUsers([...registeredUsers, newUser]);
+                                        onShowToast(`🎉 Cliente nuevo registrado! (+50 pts bono)`);
+                                    }
+                                } else {
+                                    // Anonymous Order
+                                    updateGuestOrders([newOrder, ...guestOrders]);
+                                    onShowToast('✅ Venta anónima registrada');
+                                }
+                            }}
+                        />
+                    )}
+
                     {activeTab === 'stats' && (
-                        <div className="space-y-6">
+                        <div className="space-y-6 p-8">
                             <AdminBI orders={allOrders} />
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
