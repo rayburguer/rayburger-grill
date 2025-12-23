@@ -16,51 +16,72 @@ export const useProducts = () => {
     ).current;
 
     // Initialize products from localStorage or fallback to sample data
-    // AND try to fetch from Cloud (Supabase) to get latest updates
     useEffect(() => {
         const loadProducts = async () => {
-            // 1. Load from LocalStorage first (Fast render)
+            // 1. Load from LocalStorage (Primary Source of Truth)
             const storedProducts = safeLocalStorage.getItem('rayburger_products');
-            let currentProducts = SAMPLE_PRODUCTS;
+            let currentProducts: Product[] = [];
 
             if (storedProducts) {
                 try {
                     currentProducts = JSON.parse(storedProducts);
-                    setProducts(currentProducts);
                 } catch (error) {
                     console.error("Failed to parse products", error);
-                    setProducts(SAMPLE_PRODUCTS);
                 }
-            } else {
-                setProducts(SAMPLE_PRODUCTS);
             }
 
-            // 2. Fetch from Cloud (Background update)
-            try {
-                // Dynamic import to avoid issues if Supabase checks fail initially
-                const { supabase } = await import('../lib/supabase');
-                if (supabase) {
-                    const { data, error } = await supabase
-                        .from('rb_products')
-                        .select('*');
-
-                    if (!error && data && data.length > 0) {
-                        const cloudProducts = data as Product[];
-
-                        // Safely merge cloud products or use them if they are valid
-                        setProducts(cloudProducts);
-                        safeLocalStorage.setItem('rayburger_products', JSON.stringify(cloudProducts));
-                    } else if (data && data.length === 0) {
-                        console.warn("☁️ Cloud menu is empty. Keeping local menu for safety.");
+            // 🛠️ DATA REPAIR DOCTOR: 
+            // If we have data but categories are weird (template categories), fix them.
+            if (currentProducts.length > 0) {
+                const fixedProducts = currentProducts.map(p => {
+                    // Map old template categories to canonical ones
+                    if (['Clásica', 'Premium', 'Especial'].includes(p.category)) {
+                        return { ...p, category: 'Hamburguesas' };
                     }
+                    if (['Acompañamiento'].includes(p.category)) {
+                        return { ...p, category: 'Extras' };
+                    }
+                    return p;
+                });
+
+                // Compare if anything changed
+                if (JSON.stringify(fixedProducts) !== JSON.stringify(currentProducts)) {
+                    console.log("🩺 Menu Doctor: Fixed incorrect categories detected in local storage.");
+                    currentProducts = fixedProducts;
+                    safeLocalStorage.setItem('rayburger_products', JSON.stringify(fixedProducts));
                 }
-            } catch (err) {
-                // Silent fail if cloud is unreachable
+                setProducts(currentProducts);
+            } else {
+                // If local is EMPTY, we use SAMPLE_PRODUCTS first
+                setProducts(SAMPLE_PRODUCTS);
+                currentProducts = SAMPLE_PRODUCTS;
+            }
+
+            // 2. Fetch from Cloud ONLY IF LOCAL IS EMPTY (Initialization Phase)
+            // Or if we are using sample data and want to check if there's a real cloud version
+            const isUsingSampleData = !storedProducts;
+
+            if (isUsingSampleData) {
+                try {
+                    const { supabase } = await import('../lib/supabase');
+                    if (supabase) {
+                        const { data, error } = await supabase.from('rb_products').select('*');
+
+                        if (!error && data && data.length > 0) {
+                            const cloudProducts = data as Product[];
+                            console.log("☁️ Seeding from Cloud...");
+                            setProducts(cloudProducts);
+                            safeLocalStorage.setItem('rayburger_products', JSON.stringify(cloudProducts));
+                        }
+                    }
+                } catch (err) {
+                    // Silent fail
+                }
             }
         };
 
         loadProducts();
-    }, [replaceInCloud]);
+    }, []); // ✅ FIXED: Removed replaceInCloud dependency to prevent infinite loop
 
     useEffect(() => {
         const handleStorageChange = (e: Event) => {

@@ -175,7 +175,7 @@ export const useCloudSync = () => {
         }
 
         return results;
-    }, [pushToCloud]);
+    }, [pushToCloud, replaceInCloud]); // ✅ FIXED: Added replaceInCloud dependency
 
     return {
         isSyncing,

@@ -246,8 +246,6 @@ const App: React.FC = () => {
 
         let currentOrder: any;
 
-        const result = processOrderRewards(buyerEmail, cart, totalUsd, registeredUsers, deliveryInfo);
-
         // If we have a user (either existing or newly registered)
         if (finalUser) {
             // Re-process rewards with the correct user context if needed, 
@@ -556,9 +554,8 @@ const App: React.FC = () => {
                     )}
                 </div>
 
-                {/* SuggestionSection REMOVED - Keeping only IngredientVoting for cleaner UX */}
                 <IngredientVoting />
-                <div className="mt-20 w-full bg-gradient-to-t from-black/50 to-transparent pt-10 pb-20"><FAQSection /></div>
+                <div className="mt-10 w-full"><FAQSection /></div>
             </main>
 
             <MemoizedFooter />
@@ -615,7 +612,7 @@ const App: React.FC = () => {
             <LeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} users={registeredUsers} />
             <RouletteModal
                 isOpen={isRouletteOpen} onClose={() => setIsRouletteOpen(false)} currentUser={currentUser}
-                onUpdateUser={(updatedUser) => {
+                onUpdateUser={(updatedUser: User) => {
                     const updatedList = registeredUsers.map(u => u.email === updatedUser.email ? updatedUser : u);
                     updateUsers(updatedList);
                 }}

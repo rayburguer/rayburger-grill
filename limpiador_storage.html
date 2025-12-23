@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧹 Limpiador de LocalStorage - Ray Burger</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 40px 20px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 600px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #f97316;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+        }
+
+        .warning {
+            background: rgba(239, 68, 68, 0.2);
+            border-left: 4px solid #ef4444;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .success {
+            background: rgba(16, 185, 129, 0.2);
+            border-left: 4px solid #10b981;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 18px;
+            margin: 10px;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #dc2626;
+            transform: scale(1.05);
+        }
+
+        .btn-success {
+            background: #10b981;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🧹 Limpiador de LocalStorage</h1>
+
+        <div class="warning">
+            <strong>⚠️ ADVERTENCIA</strong><br>
+            Esta herramienta borrará TODOS los datos guardados en tu navegador para Ray Burger Grill:
+            <ul>
+                <li>Productos</li>
+                <li>Usuarios</li>
+                <li>Pedidos</li>
+                <li>Configuración</li>
+            </ul>
+            <strong>Esto solucionará el problema del "menú loco" definitivamente.</strong>
+        </div>
+
+        <div id="beforeClean">
+            <div class="status" style="background: rgba(255,255,255,0.1);">
+                <strong>📊 Datos actuales:</strong><br>
+                <span id="currentData">Cargando...</span>
+            </div>
+
+            <button class="btn" onclick="cleanStorage()">
+                🗑️ LIMPIAR TODO
+            </button>
+        </div>
+
+        <div id="afterClean" class="hidden">
+            <div class="success">
+                <strong>✅ ¡LocalStorage Limpiado!</strong><br><br>
+                Todos los datos han sido eliminados correctamente.
+            </div>
+
+            <h3 style="color: #10b981; margin-top: 30px;">🎯 Próximos Pasos:</h3>
+            <ol style="text-align: left; line-height: 2;">
+                <li>Cierra esta pestaña</li>
+                <li>Ve a <code>localhost:5173</code></li>
+                <li>Recarga la página (F5)</li>
+                <li>Entra al Admin Dashboard</li>
+                <li>Click en "Restaurar Menú"</li>
+                <li>¡Listo! Tendrás el menú oficial limpio</li>
+            </ol>
+
+            <button class="btn btn-success" onclick="window.close()">
+                ✅ Cerrar esta Ventana
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function showCurrentData() {
+            const keys = Object.keys(localStorage).filter(k => k.startsWith('rayburger_'));
+            const dataEl = document.getElementById('currentData');
+
+            if (keys.length === 0) {
+                dataEl.innerHTML = '❌ No hay datos guardados';
+                return;
+            }
+
+            let html = '<ul style="text-align: left; margin: 10px 0;">';
+            keys.forEach(key => {
+                const value = localStorage.getItem(key);
+                const size = new Blob([value]).size;
+                html += `<li><strong>${key}:</strong> ${(size / 1024).toFixed(2)} KB</li>`;
+            });
+            html += '</ul>';
+            dataEl.innerHTML = html;
+        }
+
+        function cleanStorage() {
+            if (!confirm('⚠️ ¿Estás SEGURO de que quieres borrar TODOS los datos?\n\nEsto no se puede deshacer.')) {
+                return;
+            }
+
+            // Borrar todas las claves de Ray Burger
+            const keys = Object.keys(localStorage).filter(k => k.startsWith('rayburger_'));
+            keys.forEach(key => localStorage.removeItem(key));
+
+            // Mostrar confirmación
+            document.getElementById('beforeClean').classList.add('hidden');
+            document.getElementById('afterClean').classList.remove('hidden');
+
+            // Opcional: Recargar después de 3 segundos
+            setTimeout(() => {
+                if (confirm('¿Quieres recargar la página ahora para aplicar los cambios?')) {
+                    window.location.href = 'http://localhost:5173';
+                }
+            }, 2000);
+        }
+
+        // Mostrar datos al cargar
+        showCurrentData();
+    </script>
+</body>
+
+</html>
