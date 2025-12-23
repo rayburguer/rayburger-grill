@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'; // FORCE REBUILD TIMESTAMP 2025-12-22
-import { ShoppingCart, LogIn, LogOut, UserCircle, Clock, CheckCircle, Trophy } from 'lucide-react';
+import { ShoppingCart, LogIn, LogOut, UserCircle, Clock, CheckCircle, Trophy, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Order } from '../../types';
+import MobileMenu from './MobileMenu';
 
 interface HeaderProps {
     cartItemCount: number;
@@ -30,6 +31,8 @@ const Header: React.FC<HeaderProps> = ({
     onOpenRoulette,
     activeOrder
 }) => {
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
     const baseButtonClasses = "group px-5 py-2 rounded-xl text-sm font-bold transition-all duration-300 transform hover:scale-105 flex items-center justify-center whitespace-nowrap active:scale-95";
     const primaryButtonClasses = `${baseButtonClasses} bg-orange-600 hover:bg-orange-500 text-white shadow-lg shadow-orange-900/20`;
     const secondaryButtonClasses = `${baseButtonClasses} bg-gray-800 hover:bg-gray-700 text-white border border-gray-700`;
@@ -66,23 +69,35 @@ const Header: React.FC<HeaderProps> = ({
                 </div>
             </motion.div>
             <nav className="flex items-center space-x-2 md:space-x-3">
+                {/* Mobile: Hamburger Menu */}
                 <button
-                    className={`${secondaryButtonClasses} flex !bg-orange-600/10 !border-orange-500/40 px-2 sm:px-4 hover:!bg-orange-600/20 active:scale-90`}
-                    title="Ver Ranking La Carrera"
-                    onClick={onOpenLeaderboard}
+                    onClick={() => setIsMobileMenuOpen(true)}
+                    className="lg:hidden p-2 rounded-full bg-gray-800 hover:bg-orange-600 transition-colors"
+                    aria-label="Abrir menú"
                 >
-                    <Trophy className="w-5 h-5 sm:mr-1 text-orange-500 drop-shadow-[0_0_8px_rgba(234,88,12,0.5)]" />
-                    <span className="sr-only sm:not-sr-only text-[10px] uppercase tracking-tighter">Ranking</span>
+                    <Menu className="w-6 h-6 text-white" />
                 </button>
 
-                <button
-                    className={`${secondaryButtonClasses} flex !bg-purple-600/10 !border-purple-500/40 px-2 sm:px-4 hover:!bg-purple-600/20 active:scale-90 animate-pulse`}
-                    title="Girar Ruleta de Premios"
-                    onClick={onOpenRoulette}
-                >
-                    <span className="text-lg mr-1 filter drop-shadow">🎰</span>
-                    <span className="sr-only sm:not-sr-only text-[10px] uppercase tracking-tighter text-purple-400 font-bold">Ruleta</span>
-                </button>
+                {/* Desktop: Ranking y Ruleta */}
+                <div className="hidden lg:flex items-center space-x-2">
+                    <button
+                        className={`${secondaryButtonClasses} flex !bg-orange-600/10 !border-orange-500/40 px-2 sm:px-4 hover:!bg-orange-600/20 active:scale-90`}
+                        title="Ver Ranking La Carrera"
+                        onClick={onOpenLeaderboard}
+                    >
+                        <Trophy className="w-5 h-5 sm:mr-1 text-orange-500 drop-shadow-[0_0_8px_rgba(234,88,12,0.5)]" />
+                        <span className="sr-only sm:not-sr-only text-[10px] uppercase tracking-tighter">Ranking</span>
+                    </button>
+
+                    <button
+                        className={`${secondaryButtonClasses} flex !bg-purple-600/10 !border-purple-500/40 px-2 sm:px-4 hover:!bg-purple-600/20 active:scale-90 animate-pulse`}
+                        title="Girar Ruleta de Premios"
+                        onClick={onOpenRoulette}
+                    >
+                        <span className="text-lg mr-1 filter drop-shadow">🎰</span>
+                        <span className="sr-only sm:not-sr-only text-[10px] uppercase tracking-tighter text-purple-400 font-bold">Ruleta</span>
+                    </button>
+                </div>
 
                 {currentUser ? (
                     <div className="flex items-center space-x-2">
@@ -173,6 +188,14 @@ const Header: React.FC<HeaderProps> = ({
                     )}
                 </button>
             </nav>
+
+            {/* Mobile Menu Component */}
+            <MobileMenu
+                isOpen={isMobileMenuOpen}
+                onClose={() => setIsMobileMenuOpen(false)}
+                onOpenLeaderboard={onOpenLeaderboard || (() => { })}
+                onOpenRoulette={onOpenRoulette || (() => { })}
+            />
         </header>
     );
 };

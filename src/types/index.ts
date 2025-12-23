@@ -16,6 +16,7 @@ export interface Product {
     defaultIncluded: boolean;
   }[];
   highlight?: string; // NEW: e.g. "NEW", "TOP"
+  isUploading?: boolean; // NEW: For UI state during image upload
 }
 
 export interface Suggestion {

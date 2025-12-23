@@ -41,8 +41,12 @@ const faqs = [
         answer: "Puedes canjear tus puntos en cualquier momento. Cada 100 puntos = $1.00 USD de descuento. Solo debes indicarlo al hacer tu pedido (online o presencial). Tu saldo de puntos se descuenta automáticamente y se aplica el descuento al total."
     },
     {
-        question: "¿Por qué no veo todo el menú de una vez?",
-        answer: "Para tu comodidad en el teléfono, hemos organizado el menú de forma inteligente. Verás las Hamburguesas y Perros abiertos por defecto, mientras que los Combos y Extras están en barras colapsables. ¡Solo toca el título de la categoría para descubrir más ricuras!"
+        question: "¿Cómo navego por el menú?",
+        answer: "¡Súper fácil! En la página principal verás un botón naranja gigante '🍔 VER MENÚ COMPLETO' que te lleva directo a todas nuestras hamburguesas. En móvil, también tenemos un menú hamburguesa (☰) donde puedes acceder al Ranking y la Ruleta. ¡Todo pensado para que pidas rápido!"
+    },
+    {
+        question: "¿Puedo añadir productos rápido sin abrir detalles?",
+        answer: "¡Sí! Los productos simples (sin opciones de personalización) se añaden directo al carrito con un solo tap en el botón '+'. Los productos con opciones (como 'Hacerla Doble') abren un modal para que elijas tus preferencias. ¡Pedidos en segundos!"
     }
 ];
 

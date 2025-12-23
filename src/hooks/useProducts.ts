@@ -8,6 +8,9 @@ export const useProducts = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const { replaceInCloud } = useCloudSync();
 
+    // Flag to prevent re-initialization
+    const initializedRef = useRef(false);
+
     // Debounced save function
     const saveProductsDebounced = useRef(
         debounce((newProducts: Product[]) => {
@@ -17,6 +20,10 @@ export const useProducts = () => {
 
     // Initialize products from localStorage or fallback to sample data
     useEffect(() => {
+        // Only initialize once
+        if (initializedRef.current) return;
+        initializedRef.current = true;
+
         const loadProducts = async () => {
             // 1. Load from LocalStorage (Primary Source of Truth)
             const storedProducts = safeLocalStorage.getItem('rayburger_products');

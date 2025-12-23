@@ -7,11 +7,15 @@ import { motion } from 'framer-motion';
 interface ProductCardProps {
     product: Product;
     onOpenProductDetail: (product: Product) => void;
+    onQuickAdd?: (product: Product) => void; // NEW: For direct add without modal
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenProductDetail }) => {
+const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenProductDetail, onQuickAdd }) => {
     const isAvailable = product.isAvailable !== false && (product.stockQuantity === undefined || product.stockQuantity > 0);
     const isLowStock = product.stockQuantity !== undefined && product.stockQuantity > 0 && product.stockQuantity < 10;
+
+    // Check if product has customizable options
+    const hasOptions = product.customizableOptions && product.customizableOptions.length > 0;
 
     return (
         <motion.div
@@ -108,10 +112,16 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenProductDetail 
                         aria-label={`Añadir ${product.name} al carrito`}
                         onClick={(e) => {
                             e.stopPropagation();
-                            // If this was a direct "add" from home, but we want the modal to open 
-                            // for customizations, we should probably keep onOpenProductDetail.
-                            // However, the user asked for POS efficiency.
-                            isAvailable && onOpenProductDetail(product);
+                            if (!isAvailable) return;
+
+                            // SMART ADD LOGIC:
+                            // If product has NO options, add directly to cart
+                            if (!hasOptions && onQuickAdd) {
+                                onQuickAdd(product);
+                            } else {
+                                // If product has options, open modal for customization
+                                onOpenProductDetail(product);
+                            }
                         }}
                     >
                         <Plus size={28} className="sm:size-20" />

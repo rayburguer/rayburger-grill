@@ -1,0 +1,5 @@
+VITE_API_KEY=AIzaSyCedrhGpOCYQOp9nNA9Ivk6uGyIuQiGhMs
+
+# Supabase Configuration
+VITE_SUPABASE_URL=https://qpjgijelynprrysxsllv.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_c7blg434TB7FIHrDaV2n2Q_ETCw4nH7

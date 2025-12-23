@@ -51,7 +51,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ isOpen, onClose
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Personaliza ${product.name}`}>
-            <div className="flex flex-col items-center space-y-4">
+            <div className="flex flex-col items-center space-y-4 pb-20 md:pb-0">
                 <img
                     src={product.image || IMAGE_PLACEHOLDER}
                     alt={product.name}
@@ -111,13 +111,16 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ isOpen, onClose
                     <span className="text-orange-500">$ {(currentPrice * quantity).toFixed(2)} USD</span>
                 </div>
 
-                <button
-                    onClick={handleAddToCartClick}
-                    className="w-full mt-6 bg-orange-600 text-white py-3 rounded-full text-lg font-semibold hover:bg-orange-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    aria-label={`Añadir ${quantity}x ${product.name} al carrito por $ ${(currentPrice * quantity).toFixed(2)} USD`}
-                >
-                    Añadir al Carrito
-                </button>
+                {/* STICKY BUTTON FOR MOBILE */}
+                <div className="fixed md:relative bottom-0 left-0 right-0 p-4 bg-gray-800 md:bg-transparent border-t md:border-t-0 border-gray-700 z-50 md:z-auto">
+                    <button
+                        onClick={handleAddToCartClick}
+                        className="w-full bg-orange-600 text-white py-3 rounded-full text-lg font-semibold hover:bg-orange-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-lg"
+                        aria-label={`Añadir ${quantity}x ${product.name} al carrito por $ ${(currentPrice * quantity).toFixed(2)} USD`}
+                    >
+                        Añadir al Carrito
+                    </button>
+                </div>
             </div>
         </Modal>
     );

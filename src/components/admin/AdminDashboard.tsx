@@ -258,16 +258,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     <div className="flex flex-col gap-2">
                                         <label className="text-gray-400 text-xs">Imagen</label>
                                         <div className="flex items-center gap-2">
-                                            <label className="flex-1 cursor-pointer bg-gray-900 border border-gray-700 hover:border-orange-500 rounded p-3 text-white flex items-center justify-center gap-2">
-                                                <Upload size={16} />
-                                                <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file) {
-                                                        const reader = new FileReader();
-                                                        reader.onloadend = () => setCurrentProduct({ ...currentProduct, image: reader.result as string });
-                                                        reader.readAsDataURL(file);
-                                                    }
-                                                }} />
+                                            <label className={`flex-1 cursor-pointer bg-gray-900 border border-gray-700 hover:border-orange-500 rounded p-3 text-white flex items-center justify-center gap-2 ${currentProduct.isUploading ? 'opacity-50 cursor-wait' : ''}`}>
+                                                {currentProduct.isUploading ? <RefreshCw className="animate-spin" size={16} /> : <Upload size={16} />}
+                                                <span className="text-xs">{currentProduct.isUploading ? 'Subiendo...' : 'Subir Foto'}</span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    disabled={currentProduct.isUploading}
+                                                    onChange={async (e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                            // Set uploading state locally (hack using partial product)
+                                                            setCurrentProduct(prev => ({ ...prev, isUploading: true }));
+
+                                                            try {
+                                                                const { uploadProductImage } = await import('../../utils/uploadImage');
+                                                                const publicUrl = await uploadProductImage(file);
+
+                                                                if (publicUrl) {
+                                                                    setCurrentProduct(prev => ({ ...prev, image: publicUrl }));
+                                                                }
+                                                            } catch (err) {
+                                                                console.error(err);
+                                                            } finally {
+                                                                setCurrentProduct(prev => ({ ...prev, isUploading: undefined }));
+                                                            }
+                                                        }
+                                                    }}
+                                                />
                                             </label>
                                             {currentProduct.image && <img src={currentProduct.image} className="w-12 h-12 rounded object-cover" />}
                                         </div>

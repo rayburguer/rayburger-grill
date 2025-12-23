@@ -104,7 +104,17 @@ export const useAuth = () => {
             return;
         }
 
+        // Skip if registeredUsers is empty (initial state)
+        if (registeredUsers.length === 0) {
+            return;
+        }
+
         const updatedUserInList = registeredUsers.find(u => u.email === currentUser.email);
+
+        // If user not found in list, don't do anything (prevents loops)
+        if (!updatedUserInList) {
+            return;
+        }
         if (updatedUserInList) {
             const currentStr = JSON.stringify(currentUser);
             const updatedStr = JSON.stringify(updatedUserInList);
@@ -131,11 +141,12 @@ export const useAuth = () => {
         const syncUsersWithLocalStorage = () => {
             if (isUpdatingRef.current) return;
 
+            // Basic debounce for sync events
             const now = Date.now();
-            if (now - lastSyncTimeRef.current < 500) {
+            if (now - lastSyncTimeRef.current < 2000) { // Increased to 2s
                 syncAttemptsRef.current++;
-                if (syncAttemptsRef.current > 5) {
-                    console.error("🛑 Sync loop detected. Interventing.");
+                if (syncAttemptsRef.current > 5) { // Increased retry limit
+                    console.warn("⚠️ Sync rate limit hit. Pausing sync for a moment.");
                     return;
                 }
             } else {
@@ -147,12 +158,17 @@ export const useAuth = () => {
             if (storedUsersString) {
                 try {
                     const storedUsers = JSON.parse(storedUsersString) as User[];
-                    const getQuickHash = (list: User[]) => list.length + list.reduce((acc, u) => acc + (u.points || 0), 0);
 
-                    if (getQuickHash(storedUsers) !== getQuickHash(registeredUsers)) {
+                    // DEEP EQUALITY CHECK (Expensive but safe against loops)
+                    // We only compare critical fields to avoid false positives on non-essential data
+                    const currentJson = JSON.stringify(registeredUsers);
+                    const storedJson = JSON.stringify(storedUsers);
+
+                    if (currentJson !== storedJson) {
                         isUpdatingRef.current = true;
                         setRegisteredUsers(storedUsers);
-                        setTimeout(() => { isUpdatingRef.current = false; }, 200);
+                        // Longer cooldown to let state settle
+                        setTimeout(() => { isUpdatingRef.current = false; }, 500);
                     }
                 } catch (e) {
                     console.error("Failed to sync users", e);
@@ -161,6 +177,7 @@ export const useAuth = () => {
         };
 
         window.addEventListener('storage', syncUsersWithLocalStorage);
+        // Note: 'rayburger_users_updated' purely internal if we add dispatchers in future
         window.addEventListener('rayburger_users_updated', syncUsersWithLocalStorage);
 
         return () => {

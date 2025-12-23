@@ -26,7 +26,29 @@ const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, totalUsd, 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Tu Carrito de Compras">
             {cart.length === 0 ? (
-                <p className="text-gray-300 text-center py-4">Tu carrito está vacío. ¡Añade algunas delicias!</p>
+                <div className="text-center py-8">
+                    <p className="text-gray-300 text-xl mb-6">Tu carrito está vacío 😢</p>
+                    <div className="space-y-3">
+                        <button
+                            onClick={() => {
+                                onClose();
+                                document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="w-full py-3 px-6 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-bold transition-all hover:scale-[1.02] active:scale-95 shadow-lg flex items-center justify-center gap-2"
+                        >
+                            🍔 Explorar Menú
+                        </button>
+                        <button
+                            onClick={() => {
+                                onClose();
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="w-full py-3 px-6 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-bold transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            🔥 Ver Lo Más Vendido
+                        </button>
+                    </div>
+                </div>
             ) : (
                 <>
                     <ul className="space-y-4 mb-6">

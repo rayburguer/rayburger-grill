@@ -174,17 +174,23 @@ const App: React.FC = () => {
 
     // Auto-sync to cloud every 5 minutes (300000ms) for data protection
     useEffect(() => {
-        const syncInterval = setInterval(async () => {
-            try {
-                await migrateAllToCloud();
-                // console.debug('✅ Auto-sync completado');
-            } catch (error) {
-                console.error('❌ Error en auto-sync:', error);
-            }
-        }, 5 * 60 * 1000); // 5 minutes
+        // Wait 30 seconds before starting auto-sync to avoid startup interference
+        const initialDelay = setTimeout(() => {
+            const syncInterval = setInterval(async () => {
+                try {
+                    await migrateAllToCloud();
+                    // console.debug('✅ Auto-sync completado');
+                } catch (error) {
+                    console.error('❌ Error en auto-sync:', error);
+                }
+            }, 5 * 60 * 1000); // 5 minutes
 
-        // Cleanup on unmount
-        return () => clearInterval(syncInterval);
+            // Cleanup interval on unmount
+            return () => clearInterval(syncInterval);
+        }, 30000); // 30 seconds initial delay
+
+        // Cleanup timeout on unmount
+        return () => clearTimeout(initialDelay);
     }, [migrateAllToCloud]);
 
     const handleLogout = useCallback(() => {
@@ -361,6 +367,13 @@ const App: React.FC = () => {
         }
     }, [products, addToCart, showToast, openCart]);
 
+    const handleQuickAddToCart = useCallback((product: Product) => {
+        // Add product directly with quantity 1 and base price (no customizations)
+        addToCart(product, 1, {}, product.basePrice_usd);
+        showToast(`✅ ${product.name} añadido!`);
+        import('./utils/confetti').then(({ triggerConfetti }) => triggerConfetti());
+    }, [addToCart, showToast]);
+
     const categories = useMemo(() => {
         if (!products.length) return [ALL_CATEGORIES_KEY];
         const cats = Array.from(new Set(products.map(p => p.category)));
@@ -405,7 +418,30 @@ const App: React.FC = () => {
 
             <main className="flex-1 flex flex-col items-center pt-24 pb-24 lg:pb-12 px-4 whitespace-normal">
                 {selectedCategory === ALL_CATEGORIES_KEY && !searchTerm && (
-                    <HeroSection onCtaClick={() => document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' })} />
+                    <>
+                        <HeroSection onCtaClick={() => document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' })} />
+
+                        {/* CTA GIGANTE: VER MENÚ COMPLETO */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                            className="w-full max-w-4xl mb-8 px-4"
+                        >
+                            <button
+                                onClick={() => {
+                                    setSelectedCategory('Hamburguesas');
+                                    document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' });
+                                }}
+                                className="w-full py-6 px-8 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-3xl font-black text-2xl uppercase tracking-wide shadow-2xl hover:shadow-orange-600/50 transition-all hover:scale-[1.02] flex items-center justify-center gap-4 group"
+                            >
+                                🍔 Ver Menú Completo
+                                <svg className="w-8 h-8 transition-transform group-hover:translate-y-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                        </motion.div>
+                    </>
                 )}
 
                 {selectedCategory === ALL_CATEGORIES_KEY && !searchTerm && (
@@ -459,7 +495,7 @@ const App: React.FC = () => {
                                         {filteredProducts.length > 0 ? (
                                             filteredProducts.map((product, index) => (
                                                 <motion.div key={product.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: index * 0.05 }}>
-                                                    <ProductCard product={product} onOpenProductDetail={openProductDetail} />
+                                                    <ProductCard product={product} onOpenProductDetail={openProductDetail} onQuickAdd={handleQuickAddToCart} />
                                                 </motion.div>
                                             ))
                                         ) : (
@@ -539,7 +575,7 @@ const App: React.FC = () => {
                                                             ) : (
                                                                 // STANDARD GRID LAYOUT
                                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                                                    {categoryProducts.map((product) => <ProductCard key={product.id} product={product} onOpenProductDetail={openProductDetail} />)}
+                                                                    {categoryProducts.map((product) => <ProductCard key={product.id} product={product} onOpenProductDetail={openProductDetail} onQuickAdd={handleQuickAddToCart} />)}
                                                                 </div>
                                                             )}
                                                         </motion.div>
