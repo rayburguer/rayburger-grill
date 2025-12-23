@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>🔧 Reparador de Datos - Ray Burger</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+        }
+
+        h1 {
+            color: #f97316;
+            text-align: center;
+        }
+
+        .btn {
+            background: #f97316;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            margin: 10px;
+            width: 100%;
+        }
+
+        .btn:hover {
+            background: #ea580c;
+        }
+
+        .status {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+
+        .warning {
+            background: rgba(239, 68, 68, 0.2);
+            border-left: 4px solid #ef4444;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .success {
+            background: rgba(16, 185, 129, 0.2);
+            border-left: 4px solid #10b981;
+            padding: 15px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🔧 Reparador de Datos</h1>
+
+        <div class="warning">
+            <strong>⚠️ Problema Detectado:</strong><br>
+            Los datos en el Admin Dashboard y el menú principal están desincronizados.
+        </div>
+
+        <div class="status">
+            <h3>📊 Estado Actual:</h3>
+            <div id="status">Analizando...</div>
+        </div>
+
+        <button class="btn" onclick="fixData()">
+            🔧 REPARAR DATOS AHORA
+        </button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function checkStatus() {
+            const products = localStorage.getItem('rayburger_products');
+            const statusEl = document.getElementById('status');
+
+            if (!products) {
+                statusEl.innerHTML = '❌ No hay productos en localStorage';
+                return;
+            }
+
+            try {
+                const data = JSON.parse(products);
+                const categories = [...new Set(data.map(p => p.category))];
+
+                statusEl.innerHTML = `
+                    <strong>Total de productos:</strong> ${data.length}<br>
+                    <strong>Categorías:</strong> ${categories.join(', ')}<br>
+                    <strong>Problema:</strong> ${categories.includes('s') || categories.includes('Clásica') ? '❌ Datos corruptos detectados' : '✅ Datos parecen correctos'}
+                `;
+            } catch (e) {
+                statusEl.innerHTML = '❌ Error al leer datos: ' + e.message;
+            }
+        }
+
+        function fixData() {
+            const resultEl = document.getElementById('result');
+
+            // Paso 1: Limpiar localStorage
+            localStorage.clear();
+
+            // Paso 2: Recargar la página para que cargue SAMPLE_PRODUCTS
+            resultEl.innerHTML = '<div class="success"><strong>✅ Datos limpiados</strong><br>Recargando página en 2 segundos...</div>';
+
+            setTimeout(() => {
+                window.location.href = 'http://localhost:5173';
+            }, 2000);
+        }
+
+        // Verificar al cargar
+        checkStatus();
+    </script>
+</body>
+
+</html>
