@@ -576,7 +576,103 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                     {activeTab === 'marketing' && (
                         <div className="space-y-6">
-                            <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                            {/* FOUNDER CAMPAIGN SECTION */}
+                            <div className="bg-gradient-to-br from-orange-900/20 to-gray-800 p-8 rounded-2xl border border-orange-700/30 shadow-2xl">
+                                <h3 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                                    🏆 Campaña FUNDADOR
+                                </h3>
+                                <p className="text-gray-400 text-sm mb-6">
+                                    Mensaje listo para enviar a tus 50 clientes más cercanos. Copia y pega en WhatsApp.
+                                </p>
+
+                                {/* Stats */}
+                                <div className="grid grid-cols-2 gap-4 mb-6">
+                                    <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700">
+                                        <p className="text-xs text-gray-500 uppercase font-bold mb-1">Registros FUNDADOR</p>
+                                        <p className="text-3xl font-black text-orange-400">
+                                            {registeredUsers.filter(u => u.referredByCode?.toUpperCase() === 'FUNDADOR').length}
+                                        </p>
+                                    </div>
+                                    <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700">
+                                        <p className="text-xs text-gray-500 uppercase font-bold mb-1">Multiplicador</p>
+                                        <p className="text-3xl font-black text-orange-400">3x</p>
+                                    </div>
+                                </div>
+
+                                {/* Message Template */}
+                                <div className="bg-gray-900 p-6 rounded-xl border border-gray-700 mb-4">
+                                    <p className="text-xs text-gray-500 uppercase font-bold mb-3">📱 Mensaje para WhatsApp:</p>
+                                    <div className="bg-black/30 p-4 rounded-lg font-mono text-sm text-gray-300 whitespace-pre-wrap border border-gray-800">
+                                        {`Hola [Nombre], ¡Ray Burger está de vuelta! 🍔🔥
+
+Como eres cliente antiguo, quiero que seas FUNDADOR de nuestro nuevo sistema de lealtad.
+
+🎁 TU CÓDIGO EXCLUSIVO: FUNDADOR
+
+BENEFICIOS FUNDADOR:
+✅ 3x Puntos en TODAS tus compras por 30 días
+✅ Cada 100 puntos = $1 en descuentos o productos gratis
+
+PERO AQUÍ VIENE LO MEJOR:
+💰 Por cada amigo que traigas con tu código:
+   - Él gana 2x Puntos en su primera compra
+   - TÚ ganas 2% de CASHBACK de por vida de lo que él compre
+   
+Ejemplo real:
+- Tu amigo gasta $100 → Tú recibes $2 en tu cuenta
+- Traes 10 amigos activos → Ingresos pasivos cada mes 💸
+- Tus puntos → Los canjeas por burgers, combos o descuentos
+
+Link para registrarte: rayburgergrill.com.ve
+
+Cuando te registres, copia tu código personal y compártelo.
+Mientras más amigos traigas, más ganas.
+
+¿Listo para ser Fundador?`}
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={() => {
+                                        const message = `Hola [Nombre], ¡Ray Burger está de vuelta! 🍔🔥\n\nComo eres cliente antiguo, quiero que seas FUNDADOR de nuestro nuevo sistema de lealtad.\n\n🎁 TU CÓDIGO EXCLUSIVO: FUNDADOR\n\nBENEFICIOS FUNDADOR:\n✅ 3x Puntos en TODAS tus compras por 30 días\n✅ Cada 100 puntos = $1 en descuentos o productos gratis\n\nPERO AQUÍ VIENE LO MEJOR:\n💰 Por cada amigo que traigas con tu código:\n   - Él gana 2x Puntos en su primera compra\n   - TÚ ganas 2% de CASHBACK de por vida de lo que él compre\n   \nEjemplo real:\n- Tu amigo gasta $100 → Tú recibes $2 en tu cuenta\n- Traes 10 amigos activos → Ingresos pasivos cada mes 💸\n- Tus puntos → Los canjeas por burgers, combos o descuentos\n\nLink para registrarte: rayburgergrill.com.ve\n\nCuando te registres, copia tu código personal y compártelo.\nMientras más amigos traigas, más ganas.\n\n¿Listo para ser Fundador?`;
+                                        navigator.clipboard.writeText(message);
+                                        onShowToast('📋 Mensaje copiado al portapapeles');
+                                    }}
+                                    className="w-full px-6 py-4 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-900/30"
+                                >
+                                    📋 Copiar Mensaje Completo
+                                </button>
+                            </div>
+
+                            {/* VIP LINK SECTION (Existing) */}
+                            <div className="bg-gradient-to-br from-purple-900/20 to-gray-800 p-8 rounded-2xl border border-purple-700/30 shadow-2xl">
+                                <h3 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                                    🎁 Link VIP (2x Puntos)
+                                </h3>
+                                <p className="text-gray-400 text-sm mb-4">
+                                    Comparte este enlace especial para que nuevos clientes se registren con doble puntos en su primera compra.
+                                </p>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value="https://rayburgergrill.com.ve/?promo=VIP_RAY"
+                                        readOnly
+                                        className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white font-mono text-sm"
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText('https://rayburgergrill.com.ve/?promo=VIP_RAY');
+                                            onShowToast('🔗 Link VIP copiado');
+                                        }}
+                                        className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-all"
+                                    >
+                                        Copiar
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* RETENTION MARKETING (Existing) */}
+                            <div className="bg-gray-800 p-8 rounded-2xl border border-gray-700 shadow-2xl">
                                 <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
                                     <TrendingUp className="text-pink-500" /> Marketing de Retención
                                 </h3>

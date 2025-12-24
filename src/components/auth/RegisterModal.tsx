@@ -41,11 +41,14 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
                 u.referralCode.toLowerCase() === value.toLowerCase()
             );
             // System Codes for Marketing
-            const isSystemCode = ['VIP_RAY', 'RAYVIP'].includes(value.toUpperCase());
+            const isVIPCode = ['VIP_RAY', 'RAYVIP'].includes(value.toUpperCase());
+            const isFundadorCode = value.toUpperCase() === 'FUNDADOR';
 
             if (codeExists) {
                 setReferrerError('✓ Código válido'); // Success message
-            } else if (isSystemCode) {
+            } else if (isFundadorCode) {
+                setReferrerError('✓ Código FUNDADOR Activo (3x Puntos)');
+            } else if (isVIPCode) {
                 setReferrerError('✓ Código Promo Activo (2x Puntos)');
             } else {
                 setReferrerError('✗ Código no encontrado');
@@ -110,7 +113,8 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
             loyaltyTier: calculateLoyaltyTier(0),
             orders: [],
             role: 'customer',
-            nextPurchaseMultiplier: referrerCode ? 2 : 1 // 2X Bonus only if referred (Gift)
+            // FUNDADOR = 3x, VIP/otros = 2x, sin código = 1x
+            nextPurchaseMultiplier: referrerCode?.toUpperCase() === 'FUNDADOR' ? 3 : (referrerCode ? 2 : 1)
         };
 
         try {
