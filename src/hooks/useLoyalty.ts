@@ -13,15 +13,14 @@ interface ProcessOrderResult {
 
 export const useLoyalty = () => {
 
-    // NUEVO: Calcula puntos como % del monto según tier
-    const calculateRewards = (totalUsd: number, currentTier: string) => {
+    // NUEVO: Calcula puntos como % del monto según tier, con soporte para Multiplicador
+    const calculateRewards = (totalUsd: number, currentTier: string, multiplier: number = 1) => {
         let rate = POINTS_TIER_RATES.Bronze; // 3% default
         if (currentTier === 'Silver') rate = POINTS_TIER_RATES.Silver; // 5%
         if (currentTier === 'Gold') rate = POINTS_TIER_RATES.Gold; // 8%
 
-        // Puntos = monto × tasa × 100 (para convertir a puntos enteros)
-        // Ejemplo: $10 × 0.03 × 100 = 30 puntos (3% de $10 = $0.30 = 30 pts)
-        const points = Math.floor(totalUsd * rate * 100);
+        // Puntos = monto × tasa × 100 (para convertir a puntos enteros) × Multiplicador
+        const points = Math.floor(totalUsd * rate * 100 * multiplier);
         return { points };
     };
 
@@ -44,8 +43,33 @@ export const useLoyalty = () => {
         }
 
         let buyer = users[buyerIndex];
+
+        // ADMIN PROTECTION: Admins do NOT earn points
+        if (buyer.role === 'admin') {
+            const newOrder: Order = {
+                orderId: generateUuid(),
+                timestamp: Date.now(),
+                totalUsd: totalUsd + (deliveryInfo?.fee || 0),
+                items: cartItems.map(item => ({ name: item.name, quantity: item.quantity, price_usd: item.finalPrice_usd })),
+                pointsEarned: 0,
+                referrerPointsEarned: 0,
+                level2ReferrerPointsEarned: 0,
+                status: 'pending',
+                deliveryMethod: deliveryInfo?.method || 'pickup',
+                deliveryFee: deliveryInfo?.fee || 0,
+                customerName: buyer.name,
+                customerPhone: deliveryInfo?.phone || buyer.phone
+            };
+            buyer.orders.push(newOrder);
+            users[buyerIndex] = buyer;
+            return { updatedUsers: users, orderSummary: { pointsEarned: 0, referrerCashback: 0 } };
+        }
+
         const tierAtPurchase = buyer.loyaltyTier || 'Bronze';
-        const { points } = calculateRewards(totalUsd, tierAtPurchase);
+        // Check for retention multiplier
+        const multiplier = buyer.nextPurchaseMultiplier || 1;
+
+        const { points } = calculateRewards(totalUsd, tierAtPurchase, multiplier);
 
         // NUEVO: Referidor solo gana CASHBACK (2% del monto)
         // Ya NO gana puntos por traer amigos
@@ -110,14 +134,24 @@ export const useLoyalty = () => {
         buyer.points += order.pointsEarned;
         buyer.orders[orderIndex].status = 'approved';
 
-        // REFERIDOR: Solo recibe CASHBACK (2% del monto)
-        // Ya NO recibe puntos por traer amigos
+        // CONSUME MULTIPLIER: Reset to 1 after successful purchase (Gift is single-use)
+        if (buyer.nextPurchaseMultiplier && buyer.nextPurchaseMultiplier > 1) {
+            buyer.nextPurchaseMultiplier = 1;
+        }
+
+        // REFERIDOR: Recibe CASHBACK (2% del monto)
+        // REGLA DE HONESTIDAD: Si el referidor es ADMIN, no recibe nada (el beneficio fue para el cliente)
         if (buyer.referredByCode) {
             const referrerIndex = users.findIndex(u => u.referralCode === buyer.referredByCode);
             if (referrerIndex > -1) {
-                // Cashback 2% on ALL purchases
-                const referrerCashback = order.totalUsd * REFERRAL_CASHBACK_RATE;
-                users[referrerIndex].cashbackBalance_usd = (users[referrerIndex].cashbackBalance_usd || 0) + referrerCashback;
+                const referrer = users[referrerIndex];
+
+                // Si el referidor es Admin, salatamos el cashback (Honestidad)
+                if (referrer.role !== 'admin') {
+                    // Cashback 2% on ALL purchases
+                    const referrerCashback = order.totalUsd * REFERRAL_CASHBACK_RATE;
+                    users[referrerIndex].cashbackBalance_usd = (users[referrerIndex].cashbackBalance_usd || 0) + referrerCashback;
+                }
 
                 // Check if first purchase for stats
                 const previouslyApprovedOrders = buyer.orders.filter((o, idx) => idx !== orderIndex && o.status === 'approved');

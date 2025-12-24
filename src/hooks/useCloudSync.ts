@@ -146,7 +146,10 @@ export const useCloudSync = () => {
         if (localProducts) {
             try {
                 const products = JSON.parse(localProducts);
-                results.push(await replaceInCloud('rb_products', products));
+                if (products.length > 0) {
+                    // USE PUSH (UPSERT) INSTEAD OF REPLACE FOR AUTO-SYNC
+                    results.push(await pushToCloud('rb_products', products));
+                }
             } catch (e) {
                 console.error("Error parsing products:", e);
                 results.push({ error: 'Parse error in products' });
@@ -177,12 +180,85 @@ export const useCloudSync = () => {
         return results;
     }, [pushToCloud, replaceInCloud]); // ✅ FIXED: Added replaceInCloud dependency
 
+    const pullFromCloud = useCallback(async () => {
+        if (!supabase) return { error: 'Supabase client not initialized' };
+
+        setIsSyncing(true);
+        const errors = [];
+
+        try {
+            console.log("☁️ STARTING MANUAL PULL FROM CLOUD...");
+
+            // 1. PRODUCTS
+            const { data: products, error: prodError } = await supabase.from('rb_products').select('*');
+            if (prodError) errors.push(`Products: ${prodError.message}`);
+            else if (products) {
+                // Map back customizable options if needed (currently stored as is)
+                localStorage.setItem('rayburger_products', JSON.stringify(products));
+                // Force UI update
+                window.dispatchEvent(new CustomEvent('rayburger_products_updated', { detail: { source: 'cloud_pull' } }));
+                console.log(`✅ Pulled ${products.length} products`);
+            }
+
+            // 2. USERS
+            const { data: users, error: userError } = await supabase.from('rb_users').select('*');
+            if (userError) errors.push(`Users: ${userError.message}`);
+            else if (users) {
+                // Map back ID -> Email if needed, but we use email as ID in sync logic
+                const localUsers = users.map(u => {
+                    const { id, ...rest } = u; // Remove Supabase ID if it conflicts, but our ID is email
+                    return { ...rest };
+                });
+                localStorage.setItem('rayburger_registered_users', JSON.stringify(localUsers));
+                window.dispatchEvent(new CustomEvent('rayburger_users_updated', { detail: { source: 'cloud_pull' } }));
+                console.log(`✅ Pulled ${users.length} users`);
+            }
+
+            // 3. SETTINGS (Tasa)
+            const { data: settings, error: setError } = await supabase.from('rb_settings').select('*').eq('id', 'tasa').single();
+            if (!setError && settings) {
+                localStorage.setItem('rayburger_tasa', settings.value.toString());
+                console.log(`✅ Pulled Tasa: ${settings.value}`);
+            }
+
+            // 4. GUEST ORDERS
+            const { data: orders, error: ordError } = await supabase.from('rb_orders').select('*');
+            if (ordError) errors.push(`Orders: ${ordError.message}`);
+            else if (orders) {
+                const localOrders = orders.map(o => {
+                    const { id, ...rest } = o;
+                    return { ...rest, orderId: id }; // Map ID back to orderId
+                });
+                localStorage.setItem('rayburger_guest_orders', JSON.stringify(localOrders));
+                console.log(`✅ Pulled ${orders.length} orders`);
+            }
+
+            const now = Date.now();
+            setLastSync(now);
+            localStorage.setItem('rayburger_last_cloud_sync', now.toString());
+
+            if (errors.length > 0) {
+                console.error("❌ Pull errors:", errors);
+                return { error: errors.join(', ') };
+            }
+
+            return { error: null };
+
+        } catch (err: any) {
+            console.error("💥 CRITICAL PULL ERROR:", err);
+            return { error: err.message };
+        } finally {
+            setIsSyncing(false);
+        }
+    }, []);
+
     return {
         isSyncing,
         lastSync,
         pushToCloud,
         replaceInCloud,
         fetchFromCloud,
-        migrateAllToCloud
+        migrateAllToCloud,
+        pullFromCloud
     };
 };

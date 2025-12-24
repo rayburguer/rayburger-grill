@@ -11,8 +11,10 @@ interface ProductCardProps {
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenProductDetail, onQuickAdd }) => {
-    const isAvailable = product.isAvailable !== false && (product.stockQuantity === undefined || product.stockQuantity > 0);
-    const isLowStock = product.stockQuantity !== undefined && product.stockQuantity > 0 && product.stockQuantity < 10;
+    // STOCK LOGIC DISABLED BY USER REQUEST (Day 1)
+    // const isAvailable = product.isAvailable !== false && (product.stockQuantity === undefined || product.stockQuantity > 0);
+    const isAvailable = product.isAvailable !== false;
+    const isLowStock = false; // Disabled visual clutter
 
     // Check if product has customizable options
     const hasOptions = product.customizableOptions && product.customizableOptions.length > 0;

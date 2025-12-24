@@ -95,7 +95,7 @@ export const IngredientVoting: React.FC = () => {
             <div className="flex flex-col lg:flex-row gap-8 items-start">
 
                 {/* 1. THE FLAVOR CARD (Canvas) */}
-                <div className="w-full lg:w-1/2 sticky top-24 z-10">
+                <div className="w-full lg:w-1/2 lg:sticky lg:top-24 lg:z-10">
                     <div className="bg-gray-800 rounded-[2.5rem] p-6 border border-gray-700 shadow-2xl relative overflow-hidden min-h-[500px] flex flex-col">
                         <div className="absolute top-0 right-0 p-4 opacity-5">
                             <Flame size={150} className="text-orange-500" />
@@ -114,7 +114,7 @@ export const IngredientVoting: React.FC = () => {
                         </div>
 
                         {/* Ingredients Visual Stack */}
-                        <div className="flex-1 bg-gray-900/50 rounded-3xl p-4 border border-gray-700/50 mb-6 relative hover:border-orange-500/30 transition-colors min-h-[200px]">
+                        <div className="flex-1 bg-gray-900/50 rounded-3xl p-4 border border-gray-700/50 mb-6 relative hover:border-orange-500/30 transition-colors min-h-[200px] z-10">
                             {selectedIngredients.length === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-2 opacity-50 absolute inset-0 pointer-events-none">
                                     <div className="w-16 h-1 bg-gray-700 rounded-full mb-1"></div>

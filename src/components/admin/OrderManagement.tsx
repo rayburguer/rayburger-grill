@@ -106,7 +106,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                     />
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar md:flex-wrap">
-                    {(['pending', 'preparing', 'shipped', 'approved', 'rejected', 'all'] as const).map(f => (
+                    {(['pending', 'approved', 'rejected', 'all'] as const).map(f => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
@@ -115,7 +115,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                                 : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                                 }`}
                         >
-                            {f === 'all' ? 'Todos' : f === 'pending' ? 'Pendientes' : f === 'preparing' ? 'En Cocina' : f === 'shipped' ? 'En Camino' : f === 'approved' ? 'Aprobados' : 'Rechazados'}
+                            {f === 'all' ? 'Todos' : f === 'pending' ? 'Pendientes' : f === 'approved' ? 'Aprobados' : 'Rechazados'}
                         </button>
                     ))}
                 </div>

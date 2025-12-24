@@ -66,6 +66,7 @@ export interface User {
   loyaltyTier: string;
   lastPointsUpdate?: number; // For expiration tracking
   role: 'admin' | 'customer';
+  nextPurchaseMultiplier?: number; // NEW: Retention Marketing (e.g. 2x points)
   orders: Order[];
   // Anti-Fraud: Track referral activity
   referralStats?: {

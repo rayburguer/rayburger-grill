@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limpiador Maestro - Ray Burger</title>
+    <style>
+        body {
+            font-family: system-ui;
+            background: #0f172a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+
+        .card {
+            background: #1e293b;
+            padding: 2rem;
+            rounded: 1rem;
+            border: 1px solid #334155;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+        }
+
+        h1 {
+            color: #f97316;
+            margin-top: 0;
+        }
+
+        button {
+            background: #ea580c;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            background: #f97316;
+            transform: scale(1.05);
+        }
+
+        #status {
+            margin-top: 1.5rem;
+            font-family: monospace;
+            color: #94a3b8;
+        }
+
+        .success {
+            color: #22c55e !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>Limpiador Maestro</h1>
+        <p>Usa esto si ves versiones viejas o cosas raras en la página.</p>
+        <button onclick="cleanEverything()">¡LIMPIAR TODO AHORA!</button>
+        <div id="status">Esperando...</div>
+    </div>
+
+    <script>
+        async function cleanEverything() {
+            const status = document.getElementById('status');
+            status.innerHTML = "Buscando Service Workers...";
+
+            try {
+                // 1. Unregister all service workers
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                        console.log('SW Unregistered');
+                    }
+                }
+
+                // 2. Clear all caches
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    for (let name of cacheNames) {
+                        await caches.delete(name);
+                        console.log('Cache Deleted:', name);
+                    }
+                }
+
+                // 3. Clear localStorage
+                localStorage.clear();
+
+                status.innerHTML = "<span class='success'>¡ÉXITO TOTAL!</span><br>Cerrando en 3 segundos...<br>Luego entra a localhost:5173/admin";
+
+                setTimeout(() => {
+                    window.location.href = "http://localhost:5173/admin";
+                }, 3000);
+
+            } catch (e) {
+                status.innerHTML = "Error: " + e.message;
+            }
+        }
+    </script>
+</body>
+
+</html>

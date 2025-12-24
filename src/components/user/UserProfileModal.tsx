@@ -121,7 +121,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                     </p>
                     <a
                         href={`https://wa.me/?text=${encodeURIComponent(
-                            `🍔 ¡Hola! Te invito a Ray Burger Grill, las mejores hamburguesas premium.\n\n✨ Regístrate con mi código: ${user.referralCode}\ny obtén $50 de bienvenida!\n\n👉 https://rayburgergrill.com.ve`
+                            `🍔 ¡Felicidades! Te acabo de enviar un REGALO en Ray Burger Grill. 🎁✨\n\nSi te unes con mi link, recibirás *DOBLE PUNTUACIÓN (2x)* en tu primera compra para que canjees comida gratis más rápido. 🍟🔥\n\n¡Regístrate aquí!: https://rayburgergrill.com.ve?ref=${user.referralCode}`
                         )}`}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -150,7 +150,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                 </div>
 
                 <p className="text-sm text-gray-400 text-center mt-2">
-                    ¡Comparte tu código y gana <span className="text-green-400 font-bold">2% de saldo</span> en cada compra de tus amigos!
+                    ¡Tus amigos ganan <span className="text-green-400 font-bold">50 pts + Doble Puntos</span> y tú sigues sumando!
                 </p>
 
                 {/* NUEVO: Reordenar Último Pedido */}

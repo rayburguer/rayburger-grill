@@ -104,7 +104,8 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
             points: 0,
             loyaltyTier: calculateLoyaltyTier(0),
             orders: [],
-            role: 'customer'
+            role: 'customer',
+            nextPurchaseMultiplier: referrerCode ? 2 : 1 // 2X Bonus only if referred (Gift)
         };
 
         try {

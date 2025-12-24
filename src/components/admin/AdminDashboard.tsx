@@ -6,13 +6,15 @@ import { useSurveys } from '../../hooks/useSurveys';
 import {
     Plus, Edit, Trash2, X, BarChart3, Clock,
     Download, Upload, Search, Gift, Cloud, RefreshCw,
-    CheckCircle2, LogOut, Lightbulb, DollarSign
+    CheckCircle2, LogOut, Lightbulb, DollarSign, User as UserIcon,
+    TrendingUp
 } from 'lucide-react';
 import { useCloudSync } from '../../hooks/useCloudSync';
 import { useSuggestions } from '../../hooks/useSuggestions';
 import { QuickPOS } from './QuickPOS';
 import { AdminBI } from './AdminBI';
 import { CashRegisterReport } from './CashRegisterReport';
+import { OrderManagement } from './OrderManagement';
 import { persistence } from '../../utils/persistence';
 
 interface AdminDashboardProps {
@@ -38,7 +40,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const { getStats } = useSurveys();
     const { isSyncing } = useCloudSync();
     const [password, setPassword] = useState('');
-    const [activeTab, setActiveTab] = useState<'quick_pos' | 'stats' | 'cashregister' | 'products' | 'orders' | 'redeem' | 'customers' | 'suggestions' | 'cloud'>('quick_pos');
+    const [activeTab, setActiveTab] = useState<'quick_pos' | 'stats' | 'marketing' | 'cashregister' | 'products' | 'orders' | 'redeem' | 'customers' | 'suggestions' | 'cloud'>('quick_pos');
     const [redeemSearch, setRedeemSearch] = useState('');
     const [redeemAmount, setRedeemAmount] = useState<number>(0);
 
@@ -62,7 +64,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     if (!isAdmin) {
         return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm">
                 <div className="bg-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-md border border-gray-700">
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-2xl font-bold text-orange-500">Acceso Admin</h2>
@@ -105,7 +107,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md overflow-y-auto">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md overflow-y-auto">
             <div className="bg-gray-900 w-full min-h-screen lg:min-h-[auto] lg:max-w-6xl lg:rounded-2xl shadow-xl overflow-hidden flex flex-col pt-20 lg:pt-0">
                 {/* Header */}
                 <div className="bg-gray-800 p-4 lg:p-6 flex flex-col sm:flex-row justify-between items-center border-b border-gray-700 gap-4">
@@ -142,6 +144,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <Download size={14} /> Backup
                             </button>
                             <button
+                                onClick={onClose}
+                                className="ml-2 px-3 py-1.5 bg-purple-900/80 hover:bg-purple-700 text-purple-100 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 border border-purple-700 shadow-lg"
+                                title="Cerrar panel y navegar como cliente (sin perder sesión)"
+                            >
+                                <UserIcon size={14} /> Ver Tienda
+                            </button>
+                            <button
                                 onClick={resetToSample}
                                 className="ml-2 px-3 py-1.5 bg-red-900/80 hover:bg-red-700 text-red-100 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 border border-red-700 shadow-lg"
                                 title="Borrar menú actual y restaurar el original"
@@ -155,7 +164,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 {/* Navbar */}
                 <div className="flex border-b border-gray-700 bg-gray-800/50 overflow-x-auto hide-scrollbar">
-                    {(['quick_pos', 'stats', 'cashregister', 'products', 'orders', 'redeem', 'customers', 'suggestions', 'cloud'] as const).map(tab => (
+                    {(['quick_pos', 'stats', 'marketing', 'cashregister', 'products', 'orders', 'redeem', 'customers', 'suggestions', 'cloud'] as const).map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -170,6 +179,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 {tab === 'redeem' && <Gift className="w-5 h-5 mb-1" />}
                                 {tab === 'customers' && <Search className="w-5 h-5 mb-1" />}
                                 {tab === 'suggestions' && <Lightbulb className="w-5 h-5 mb-1" />}
+                                {tab === 'marketing' && <TrendingUp className="w-5 h-5 mb-1 text-pink-400" />}
                                 {tab === 'cloud' && <Cloud className="w-5 h-5 mb-1 text-blue-400" />}
                                 <span className="text-[10px] uppercase font-black">
                                     {tab === 'quick_pos' ? 'POS RÁPIDO' : tab === 'stats' ? 'Analytics' : tab === 'suggestions' ? 'Ideas' : tab === 'cashregister' ? 'CAJA' : tab}
@@ -530,6 +540,55 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                     )}
 
+                    {activeTab === 'marketing' && (
+                        <div className="space-y-6">
+                            <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                                    <TrendingUp className="text-pink-500" /> Marketing de Retención
+                                </h3>
+                                <p className="text-gray-400 text-sm mb-6">
+                                    A continuación, los clientes que no han pedido en más de 7 días. ¡Envíales un recordatorio con un beneficio!
+                                </p>
+
+                                <div className="space-y-4">
+                                    {registeredUsers
+                                        .filter(u => {
+                                            if (u.role === 'admin') return false;
+                                            if (u.orders.length === 0) return true; // Never ordered
+                                            const lastOrder = Math.max(...u.orders.map(o => o.timestamp));
+                                            const daysSince = (Date.now() - lastOrder) / (1000 * 60 * 60 * 24);
+                                            return daysSince > 7;
+                                        })
+                                        .map(u => (
+                                            <div key={u.phone} className="bg-gray-900 p-4 rounded-xl border border-gray-800 flex flex-col md:flex-row justify-between gap-4">
+                                                <div>
+                                                    <p className="font-bold text-white">{u.name}</p>
+                                                    <p className="text-gray-500 text-xs">{u.phone}</p>
+                                                    <p className="text-pink-400 text-xs mt-1">
+                                                        {u.orders.length === 0 ? 'Sin pedidos previos' : 'Última compra hace ' + Math.floor((Date.now() - Math.max(...u.orders.map(o => o.timestamp))) / (1000 * 60 * 60 * 24)) + ' días'}
+                                                    </p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            const updated = registeredUsers.map(user => user.phone === u.phone ? { ...user, nextPurchaseMultiplier: 2 } : user);
+                                                            updateUsers(updated);
+                                                            const msg = `🍔 ¡Felicidades! Te acabo de enviar un REGALO en Ray Burger Grill. 🎁✨\n\nTe activamos *DOBLE PUNTUACIÓN (2x)* en tu próxima compra para que canjees comida gratis más rápido. 🍟🔥\n\n¡Aprovecha aquí!: https://rayburgergrill.com.ve`;
+                                                            window.open(`https://wa.me/${u.phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                                                            onShowToast(`✅ Beneficio 2X enviado a ${u.name}`);
+                                                        }}
+                                                        className="px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-2"
+                                                    >
+                                                        📲 Enviar 2X por WhatsApp
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {activeTab === 'cashregister' && (
                         <CashRegisterReport orders={allOrders} tasaBs={tasaBs} />
                     )}
@@ -543,7 +602,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 };
 
 const CloudSyncSection: React.FC<{ onShowToast: (msg: string) => void }> = ({ onShowToast }) => {
-    const { isSyncing, lastSync, migrateAllToCloud } = useCloudSync();
+    const { isSyncing, lastSync, migrateAllToCloud, pullFromCloud } = useCloudSync();
     const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
     return (
@@ -576,6 +635,32 @@ const CloudSyncSection: React.FC<{ onShowToast: (msg: string) => void }> = ({ on
                 >
                     {isSyncing ? <><RefreshCw className="animate-spin" /> Sincronizando...</> : status === 'success' ? <><CheckCircle2 /> ¡Protegido!</> : status === 'error' ? '❌ Error' : 'Iniciar Migración Cloud'}
                 </button>
+
+                <div className="pt-4 border-t border-gray-700">
+                    <h4 className="text-white font-bold mb-2 flex items-center gap-2"><Download size={16} className="text-orange-400" /> Descargar de la Nube</h4>
+                    <p className="text-gray-400 text-xs mb-4">Usa esto si hiciste cambios en otro dispositivo (ej. celular) y no los ves aquí.</p>
+                    <button
+                        onClick={async () => {
+                            if (confirm('⚠️ ¿Estás seguro? Esto reemplazará tus datos locales con lo que hay en la nube.')) {
+                                setStatus('idle');
+                                const result = await pullFromCloud();
+                                if (result.error) {
+                                    setStatus('error');
+                                    onShowToast('❌ Error al descargar: ' + result.error);
+                                } else {
+                                    onShowToast('✅ Datos actualizados desde la nube. Recargando...');
+                                    setTimeout(() => window.location.reload(), 1500);
+                                }
+                            }
+                        }}
+                        disabled={isSyncing}
+                        className="w-full py-3 bg-gray-700 hover:bg-orange-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                    >
+                        {isSyncing ? <RefreshCw className="animate-spin" /> : <Download size={18} />}
+                        Descargar Cambios
+                    </button>
+                </div>
+
                 {status === 'error' && (
                     <p className="text-center text-red-400 text-sm mt-2">
                         Hubo un problema. Revisa la consola o tu conexión. (Supabase Keys)
@@ -585,5 +670,6 @@ const CloudSyncSection: React.FC<{ onShowToast: (msg: string) => void }> = ({ on
         </div>
     );
 };
+
 
 export default AdminDashboard;

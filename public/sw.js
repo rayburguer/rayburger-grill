@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rayburger-cache-v4'; // INCREMENTED VERSION AGAIN TO v4
+const CACHE_NAME = 'rayburger-cache-v7'; // FORCE REFRESH V7 - 2025-12-23 - FINAL VIRAL RELEASE
 const urlsToCache = [
     '/',
     '/index.html',

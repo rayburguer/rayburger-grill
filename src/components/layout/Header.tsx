@@ -61,11 +61,11 @@ const Header: React.FC<HeaderProps> = ({
                             Ray Burger
                         </h1>
                         <div className="flex flex-col items-start -mt-1">
-                            <span className="bg-blue-600 text-[9px] text-white px-2 py-0.5 rounded-sm font-bold animate-pulse shadow-[0_0_10px_rgba(37,99,235,0.8)]">v5</span>
-                            <span className="text-[7px] text-gray-500 font-mono tracking-widest">{new Date().toISOString().split('T')[0]}</span>
+                            <span className="bg-red-600 text-[12px] text-white px-2 py-1 rounded-md font-black animate-bounce shadow-[0_0_20px_rgba(220,38,38,0.8)]">V7-FINAL-VIRAL</span>
+                            <span className="text-[8px] text-white/50 font-mono tracking-widest">{new Date().toLocaleTimeString()}</span>
                         </div>
                     </div>
-                    <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-gray-500 leading-none mt-1">Grill & Sabor Premium</span>
+                    <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-orange-500 leading-none mt-1">SISTEMA PROTEGIDO</span>
                 </div>
             </motion.div>
             <nav className="flex items-center space-x-2 md:space-x-3">

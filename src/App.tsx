@@ -59,7 +59,7 @@ const App: React.FC = () => {
     const [isProductDetailModalOpen, setIsProductDetailModalOpen] = useState<boolean>(false);
     const [selectedProductForDetail, setSelectedProductForDetail] = useState<Product | null>(null);
     const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState<boolean>(false);
-    const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
+    const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(() => window.location.pathname === '/admin');
     const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
     const [isSurveyModalOpen, setIsSurveyModalOpen] = useState(false);
     const [lastOrderId, setLastOrderId] = useState<string>('');
@@ -158,40 +158,36 @@ const App: React.FC = () => {
     const openAdminDashboard = useCallback(() => setIsAdminDashboardOpen(true), []);
     const closeAdminDashboard = useCallback(() => setIsAdminDashboardOpen(false), []);
 
-    // Deep Link Detection: Auto-open Admin if URL has admin params
+    // Aggressive Admin Path Detection: Sync state with URL
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const adminParam = params.get('admin');
-        const orderIdParam = params.get('orderId');
+        const checkPath = () => {
+            const isLegacyAdmin = window.location.pathname === '/admin';
+            const params = new URLSearchParams(window.location.search);
+            const adminParam = params.get('admin');
+            const orderIdParam = params.get('orderId');
 
-        if (adminParam === 'orders' && orderIdParam) {
-            // Open Admin Dashboard automatically
-            setIsAdminDashboardOpen(true);
-            // Clean URL params after opening (optional, for cleaner UX)
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
+            if (isLegacyAdmin || (adminParam === 'orders' && orderIdParam)) {
+                // FORCE CLOSE everything else
+                setIsCartOpen(false);
+                setIsUserProfileModalOpen(false);
+                setIsLoginModalOpen(false);
+                setIsRegisterModalOpen(false);
+                setIsLeaderboardOpen(false);
+                setIsRouletteOpen(false);
+
+                // FORCE OPEN Admin
+                setIsAdminDashboardOpen(true);
+            }
+        };
+
+        checkPath();
+        // Also listen for popstate (user using browser back/forward)
+        window.addEventListener('popstate', checkPath);
+        return () => window.removeEventListener('popstate', checkPath);
     }, []);
 
-    // Auto-sync to cloud every 5 minutes (300000ms) for data protection
-    useEffect(() => {
-        // Wait 30 seconds before starting auto-sync to avoid startup interference
-        const initialDelay = setTimeout(() => {
-            const syncInterval = setInterval(async () => {
-                try {
-                    await migrateAllToCloud();
-                    // console.debug('✅ Auto-sync completado');
-                } catch (error) {
-                    console.error('❌ Error en auto-sync:', error);
-                }
-            }, 5 * 60 * 1000); // 5 minutes
-
-            // Cleanup interval on unmount
-            return () => clearInterval(syncInterval);
-        }, 30000); // 30 seconds initial delay
-
-        // Cleanup timeout on unmount
-        return () => clearTimeout(initialDelay);
-    }, [migrateAllToCloud]);
+    // Auto-sync REMOVED - Too risky if local storage is cleared and syncs sample data to cloud.
+    // Use manual sync buttons in Admin Dashboard instead.
 
     const handleLogout = useCallback(() => {
         logout();
@@ -397,6 +393,27 @@ const App: React.FC = () => {
         if (selectedCategory === ALL_CATEGORIES_KEY) return [];
         return products.filter(p => p.category === selectedCategory);
     }, [products, searchTerm, selectedCategory]);
+
+    // --- STRICT ADMIN MODE BYPASS (Hormigón Armado) ---
+    // Si la URL es /admin, renderizamos ÚNICAMENTE el Dashboard para evitar mezclas.
+    if (window.location.pathname === '/admin') {
+        return (
+            <div className="min-h-screen bg-gray-900">
+                <AdminDashboard
+                    isOpen={true}
+                    onClose={() => window.location.href = '/'}
+                    registeredUsers={registeredUsers}
+                    updateUsers={updateUsers}
+                    tasaBs={tasaBs}
+                    onUpdateTasa={updateTasa}
+                    guestOrders={guestOrders}
+                    updateGuestOrders={updateGuestOrders}
+                    onShowToast={showToast}
+                />
+                {isToastVisible && <Toast message={toastMessage} onClose={closeToast} />}
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-900 text-white flex flex-col">
@@ -613,34 +630,31 @@ const App: React.FC = () => {
             <LoginModal isOpen={isLoginModalOpen} onClose={closeLogin} onLogin={handleLoginSubmit} onOpenRegister={openRegister} />
             <ProductDetailModal isOpen={isProductDetailModalOpen} onClose={closeProductDetail} product={selectedProductForDetail} onAddToCart={handleAddToCart} />
             <UserProfileModal
-                isOpen={isUserProfileModalOpen}
+                isOpen={isUserProfileModalOpen && !isAdminDashboardOpen}
                 onClose={closeUserProfileModal}
                 user={currentUser}
                 onShowToast={showToast}
                 onReorder={handleReorder}
                 onClaimAdmin={() => {
                     if (!currentUser) return;
-                    // FORCE IMMEDIATE STORAGE UPDATE (Bypassing debounce race conditions)
+                    // FORCE IMMEDIATE STORAGE UPDATE
                     const upgradedUser: User = { ...currentUser, role: 'admin' };
                     const updatedList = registeredUsers.map(u => u.email === currentUser.email ? upgradedUser : u);
 
                     try {
                         localStorage.setItem('rayburger_registered_users', JSON.stringify(updatedList));
                         localStorage.setItem('rayburger_current_user', JSON.stringify(upgradedUser));
-
-                        // Update React State as well just in case
                         updateUsers(updatedList);
-
                         showToast("👑 ¡Larga vida al Rey! Eres Admin. (Recargando...)");
                         setTimeout(() => window.location.reload(), 500);
                     } catch (e) {
-                        console.error("Failed to force-save admin upgrade", e);
-                        showToast("Error al guardar privilegios. Intenta de nuevo.");
+                        showToast("Error al guardar privilegios.");
                     }
                 }}
             />
             <AdminDashboard
-                isOpen={isAdminDashboardOpen} onClose={closeAdminDashboard} registeredUsers={registeredUsers}
+                isOpen={isAdminDashboardOpen || window.location.pathname === '/admin'}
+                onClose={closeAdminDashboard} registeredUsers={registeredUsers}
                 updateUsers={updateUsers} tasaBs={tasaBs} onUpdateTasa={updateTasa} guestOrders={guestOrders} updateGuestOrders={updateGuestOrders}
                 onShowToast={showToast}
             />
