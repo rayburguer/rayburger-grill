@@ -29,7 +29,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "La Crispy Supreme",
         description: "Pollo apanado extra crujiente.",
         basePrice_usd: 7.00,
-        image: "https://images.unsplash.com/photo-1572802419224-296b0aeee0d9?w=600&h=400&fit=crop",
+        image: "/crispy.jpg",
         category: "Hamburguesas",
         customizableOptions: [
             { id: "double_meat", name: "Hacerla Doble ($10.50 Total)", price_usd: 3.50, defaultIncluded: false }
@@ -52,7 +52,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "La Romana",
         description: "Doble queso + Tomates deshidratados.",
         basePrice_usd: 7.00,
-        image: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&h=400&fit=crop",
+        image: "/la-romana.jpg",
         category: "Hamburguesas",
         customizableOptions: [
             { id: "double_meat", name: "Hacerla Doble ($9.50 Total)", price_usd: 2.50, defaultIncluded: false }
@@ -84,7 +84,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Perro Clásico",
         description: "El sabor de siempre.",
         basePrice_usd: 2.00,
-        image: "https://images.unsplash.com/photo-1612392062798-2dbaa7c0c9c0?w=600&h=400&fit=crop",
+        image: "/perro-clasico.jpg",
         category: "Perros",
         customizableOptions: []
     },
@@ -93,7 +93,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Perro Especial",
         description: "Con un toque extra.",
         basePrice_usd: 3.00,
-        image: "https://images.unsplash.com/photo-1599599810769-bcde5a160d32?w=600&h=400&fit=crop",
+        image: "/perro-especial.jpg",
         category: "Perros",
         customizableOptions: []
     },
@@ -111,7 +111,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Perro Jumbo",
         description: "Para el hambre grande.",
         basePrice_usd: 3.50,
-        image: "https://images.unsplash.com/photo-1603894584373-5ac82b2fb6c2?w=600&h=400&fit=crop",
+        image: "/perro-jumbo.jpg",
         category: "Perros",
         customizableOptions: []
     },
