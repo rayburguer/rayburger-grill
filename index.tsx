@@ -24,35 +24,11 @@ if (container) {
       <App />
     </ErrorBoundary>
   );
-  // PWA Service Worker Registration - ACTIVE for App Mode
+  // EMERGENCY SERVICE WORKER DEACTIVATION
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').then(reg => {
-        // Check for updates periodically
-        reg.onupdatefound = () => {
-          const installingWorker = reg.installing;
-          if (installingWorker) {
-            installingWorker.onstatechange = () => {
-              if (installingWorker.state === 'installed') {
-                if (navigator.serviceWorker.controller) {
-                  // New content is available; please refresh.
-                  console.log('New content available, triggering reload...');
-                }
-              }
-            };
-          }
-        };
-      }).catch(err => {
-        console.log('ServiceWorker registration failed: ', err);
-      });
-    });
-
-    // Handle the actual reload when the new service worker takes control
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!refreshing) {
-        window.location.reload();
-        refreshing = true;
+    navigator.serviceWorker.getRegistrations().then(function (registrations) {
+      for (let registration of registrations) {
+        registration.unregister();
       }
     });
   }
