@@ -63,7 +63,7 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ isOpen, onClose, onSubmit, or
             <div className="text-white">
                 <p className="text-sm text-gray-400 mb-6 text-center">
                     Tu opinión es clave para que sigamos siendo los N°1. <br />
-                    Tómate un minuto para calificar tu experiencia.
+                    <span className="text-orange-400 font-bold">¡Gana 20 puntos ($0.20)</span> por completar esta breve encuesta.
                 </p>
 
                 {renderRatingInput('Calidad de la Comida', 'foodQuality')}

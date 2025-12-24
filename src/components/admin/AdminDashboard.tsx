@@ -432,12 +432,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button
-                                                onClick={() => updateProduct({ ...p, isAvailable: p.isAvailable === false })}
-                                                className={`px - 3 py - 1 rounded text - xs font - bold ${p.isAvailable !== false ? 'bg-red-900/30 text-red-400' : 'bg-green-900/30 text-green-400'} `}
-                                            >
-                                                {p.isAvailable !== false ? '🚫 Agotar' : '✓ Activar'}
-                                            </button>
                                             <button onClick={() => { setIsEditing(true); setCurrentProduct(p); }} className="p-2 text-blue-400 hover:bg-blue-900/30 rounded"><Edit size={18} /></button>
                                             <button onClick={() => confirm('¿Eliminar?') && deleteProduct(p.id)} className="p-2 text-red-400 hover:bg-red-900/30 rounded"><Trash2 size={18} /></button>
                                         </div>

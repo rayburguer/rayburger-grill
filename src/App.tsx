@@ -361,9 +361,22 @@ const App: React.FC = () => {
 
     const handleSurveySubmit = useCallback((survey: any) => {
         addSurvey(survey);
+
+        // Award 20 points for completing the survey
+        if (currentUser && survey.userId) {
+            const updatedUsers = registeredUsers.map(u =>
+                u.email === currentUser.email
+                    ? { ...u, points: u.points + 20 }
+                    : u
+            );
+            updateUsers(updatedUsers);
+            showToast("¡Gracias por tu opinión! +20 puntos 🎁");
+        } else {
+            showToast("¡Gracias por tu opinión!");
+        }
+
         setIsSurveyModalOpen(false);
-        showToast("¡Gracias por tu opinión!");
-    }, [addSurvey, showToast]);
+    }, [addSurvey, currentUser, registeredUsers, updateUsers, showToast]);
 
     const handleAddToCart = useCallback((product: Product, quantity: number, selectedOptions: { [optionId: string]: boolean }, finalPrice: number) => {
         addToCart(product, quantity, selectedOptions, finalPrice);
