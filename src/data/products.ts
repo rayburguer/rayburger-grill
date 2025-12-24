@@ -18,7 +18,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Ray Bacon Melt",
         description: "Queso fundido + Tocineta.",
         basePrice_usd: 6.50,
-        image: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&h=400&fit=crop",
+        image: "/bacon-melt.jpg",
         category: "Hamburguesas",
         customizableOptions: [
             { id: "double_meat", name: "Hacerla Doble ($9.00 Total)", price_usd: 2.50, defaultIncluded: false }
@@ -72,7 +72,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Victoria \"Il Capo\"",
         description: "250g Rellena + Tomates deshidratados.",
         basePrice_usd: 10.00,
-        image: "https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=600&h=400&fit=crop",
+        image: "/il-capo.jpg",
         category: "Hamburguesas",
         customizableOptions: [],
         highlight: "NEW"
@@ -122,7 +122,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Pack Clásico",
         description: "4 Hamburguesas Clásicas + Papas + Refresco 2L.",
         basePrice_usd: 25.00,
-        image: "https://images.unsplash.com/photo-1594212699903-ec8a3eca50f5?w=600&h=400&fit=crop",
+        image: "/combo-hamburguesas.jpg",
         category: "Combos",
         customizableOptions: []
     },
@@ -131,7 +131,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Cheese Bacon Special",
         description: "4 Cheese Bacon Burgers + Papas + Refresco 2L.",
         basePrice_usd: 30.00,
-        image: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&h=400&fit=crop",
+        image: "/combo-hamburguesas.jpg",
         category: "Combos",
         customizableOptions: []
     },
@@ -140,7 +140,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Crispy Burger",
         description: "4 Crispy Cheese Burgers + Papas + Refresco 2L.",
         basePrice_usd: 32.00,
-        image: "https://images.unsplash.com/photo-1572802419224-296b0aeee0d9?w=600&h=400&fit=crop",
+        image: "/combo-hamburguesas.jpg",
         category: "Combos",
         customizableOptions: []
     },
@@ -149,7 +149,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Victoria Cheese",
         description: "4 Victoria Cheese Burgers + Papas + Refresco 2L.",
         basePrice_usd: 35.00,
-        image: "https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=600&h=400&fit=crop",
+        image: "/combo-hamburguesas.jpg",
         category: "Combos",
         customizableOptions: []
     },
@@ -158,7 +158,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Squad Clásico",
         description: "4 Perros Clásicos + Papas + Refresco 1L.",
         basePrice_usd: 13.00,
-        image: "https://images.unsplash.com/photo-1612392062798-2dbaa7c0c9c0?w=600&h=400&fit=crop",
+        image: "/combo-perros.jpg",
         category: "Combos",
         customizableOptions: []
     },
@@ -167,7 +167,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Squad Especial",
         description: "4 Perros Especiales + Papas + Refresco 1L.",
         basePrice_usd: 17.00,
-        image: "https://images.unsplash.com/photo-1599599810769-bcde5a160d32?w=600&h=400&fit=crop",
+        image: "/combo-perros.jpg",
         category: "Combos",
         customizableOptions: []
     },
@@ -176,7 +176,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Squad Jumbo",
         description: "4 Perros Especiales (Jumbo) + Papas + Refresco 1L.",
         basePrice_usd: 18.00,
-        image: "https://images.unsplash.com/photo-1603894584373-5ac82b2fb6c2?w=600&h=400&fit=crop",
+        image: "/combo-perros.jpg",
         category: "Combos",
         customizableOptions: []
     },
