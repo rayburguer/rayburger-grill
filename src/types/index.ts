@@ -52,6 +52,7 @@ export interface Order {
   deliveryFee: number;
   customerName?: string; // For Guest/Persistence
   customerPhone?: string; // Mandatory for contact
+  processedBy?: string; // NEW: Staff member who created the order (POS)
 }
 
 export interface User {

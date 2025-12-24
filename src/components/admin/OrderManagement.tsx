@@ -240,6 +240,21 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                                             Aprobación Directa
                                         </button>
                                     )}
+                                    {/* Smart WhatsApp Notification */}
+                                    {order.customerPhone && (!order.processedBy || order.deliveryMethod === 'delivery') && (
+                                        <button
+                                            onClick={() => {
+                                                const isDelivery = order.deliveryMethod === 'delivery';
+                                                const text = isDelivery
+                                                    ? `🛵 Hola ${order.userName}, ¡Tu pedido de Ray Burger va en camino! Atentos a la entrega.`
+                                                    : `🛍️ Hola ${order.userName}, ¡Tu pedido de Ray Burger está LISTO para retirar! Te esperamos.`;
+                                                window.open(`https://wa.me/${order.customerPhone?.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
+                                            }}
+                                            className="px-3 py-2 bg-green-600/20 text-green-400 hover:bg-green-600/40 border border-green-600/30 rounded transition-colors text-xs font-bold flex items-center gap-1"
+                                        >
+                                            <span className="text-lg">📲</span> {order.deliveryMethod === 'delivery' ? 'Avisar Delivery' : 'Avisar Retiro'}
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>

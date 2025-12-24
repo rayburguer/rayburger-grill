@@ -255,16 +255,28 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                             <div className="flex flex-col gap-2">
                                 <div className={`p-2 rounded-lg border-2 transition-all ${deliveryMethod === 'delivery' ? 'border-orange-500 bg-orange-500/10 text-white' : 'border-gray-700 bg-gray-800 text-gray-400'}`}>
                                     <span className="text-xs font-bold block mb-2 text-center">🛵 Delivery (Sectores):</span>
-                                    <div className="grid grid-cols-3 gap-1">
-                                        {[1, 2, 3].map(tier => (
-                                            <button
-                                                key={tier}
-                                                onClick={() => { setDeliveryMethod('delivery'); setDeliveryFee(tier); }}
-                                                className={`py-1 rounded text-xs font-bold border transition-colors ${deliveryFee === tier && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
-                                            >
-                                                ${tier}
-                                            </button>
-                                        ))}
+                                    <div className="grid grid-cols-1 gap-2"> {/* Changed to column layout for labels */}
+                                        <button
+                                            onClick={() => { setDeliveryMethod('delivery'); setDeliveryFee(1); }}
+                                            className={`py-2 px-3 rounded text-left text-xs font-bold border transition-colors flex justify-between items-center ${deliveryFee === 1 && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
+                                        >
+                                            <span>Zona 1 <span className="font-normal opacity-70">(Casco Central / La Mora)</span></span>
+                                            <span>$1</span>
+                                        </button>
+                                        <button
+                                            onClick={() => { setDeliveryMethod('delivery'); setDeliveryFee(2); }}
+                                            className={`py-2 px-3 rounded text-left text-xs font-bold border transition-colors flex justify-between items-center ${deliveryFee === 2 && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
+                                        >
+                                            <span>Zona 2 <span className="font-normal opacity-70">(Palma Real / San Homero)</span></span>
+                                            <span>$2</span>
+                                        </button>
+                                        <button
+                                            onClick={() => { setDeliveryMethod('delivery'); setDeliveryFee(3); }}
+                                            className={`py-2 px-3 rounded text-left text-xs font-bold border transition-colors flex justify-between items-center ${deliveryFee === 3 && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
+                                        >
+                                            <span>Zona 3 <span className="font-normal opacity-70">(El Consejo)</span></span>
+                                            <span>$3</span>
+                                        </button>
                                     </div>
                                 </div>
                             </div>

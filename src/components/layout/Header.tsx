@@ -137,16 +137,7 @@ const Header: React.FC<HeaderProps> = ({
                             </div>
                         </button>
 
-                        {currentUser.role === 'admin' && onOpenAdmin && (
-                            <button
-                                className={`${primaryButtonClasses} bg-purple-600 hover:bg-purple-700 border-purple-400 !px-4 shadow-[0_0_15px_rgba(147,51,234,0.5)]`}
-                                onClick={onOpenAdmin}
-                                title="Panel de Administrador"
-                            >
-                                <CheckCircle className="w-5 h-5 mr-1.5" />
-                                <span className="font-black tracking-wide text-xs">ADMIN</span>
-                            </button>
-                        )}
+                        {/* Admin Button REMOVED for Strict Separation - Use /admin route */}
 
                         <button
                             className={`${dangerButtonClasses} px-2 md:px-5`}

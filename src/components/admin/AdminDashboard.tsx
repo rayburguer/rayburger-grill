@@ -40,16 +40,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const { getStats } = useSurveys();
     const { isSyncing } = useCloudSync();
     const [password, setPassword] = useState('');
+    const [cashierName, setCashierName] = useState(() => localStorage.getItem('rayburger_cashier_name') || ''); // NEW: Persist cashier name
     const [activeTab, setActiveTab] = useState<'quick_pos' | 'stats' | 'marketing' | 'cashregister' | 'products' | 'orders' | 'redeem' | 'customers' | 'suggestions' | 'cloud'>('quick_pos');
     const [redeemSearch, setRedeemSearch] = useState('');
     const [redeemAmount, setRedeemAmount] = useState<number>(0);
 
-    // Deep Link: Auto-navigate to orders if orderId present
+    // Deep Link: Auto-navigate based on URL params
     React.useEffect(() => {
-        if (initialOrderId && isAdmin) {
+        if (!isOpen) return;
+        const params = new URLSearchParams(window.location.search);
+        const tabParam = params.get('tab');
+
+        if (tabParam && ['quick_pos', 'stats', 'products', 'orders', 'marketing'].includes(tabParam)) {
+            setActiveTab(tabParam as any);
+        } else if (initialOrderId && isAdmin) {
             setActiveTab('orders');
         }
-    }, [initialOrderId, isAdmin]);
+    }, [initialOrderId, isAdmin, isOpen]);
+
+    const handleLogin = () => {
+        if (loginAdmin(password)) {
+            if (cashierName.trim()) {
+                localStorage.setItem('rayburger_cashier_name', cashierName.trim());
+            }
+        } else {
+            onShowToast('❌ Contraseña incorrecta');
+        }
+    };
 
     const allOrders = [
         ...registeredUsers.flatMap(u => (u.orders || []).map(o => ({ ...o, userEmail: u.email, userName: u.name, isGuest: false }))),
@@ -67,22 +84,44 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm">
                 <div className="bg-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-md border border-gray-700">
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold text-orange-500">Acceso Admin</h2>
+                        <h2 className="text-2xl font-bold text-orange-500">Acceso Personal</h2>
                         <button onClick={onClose}><X className="text-gray-400 hover:text-white" /></button>
                     </div>
-                    <input
-                        type="password"
-                        placeholder="Contraseña Maestra"
-                        className="w-full bg-gray-700 border border-gray-600 rounded p-3 mb-4 text-white"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                    />
+
+                    <div className="mb-4">
+                        <label className="block text-gray-400 text-xs mb-1">Nombre del Cajero / Turno</label>
+                        <input
+                            type="text"
+                            placeholder="Ej. Pedro, Caja 1..."
+                            className="w-full bg-gray-700 border border-gray-600 rounded p-3 text-white focus:border-orange-500 outline-none"
+                            value={cashierName}
+                            onChange={(e) => setCashierName(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="mb-6">
+                        <label className="block text-gray-400 text-xs mb-1">Contraseña de Sistema</label>
+                        <input
+                            type="password"
+                            placeholder="Clave Maestra"
+                            className="w-full bg-gray-700 border border-gray-600 rounded p-3 text-white focus:border-orange-500 outline-none"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                        />
+                    </div>
+
                     <button
-                        onClick={() => loginAdmin(password)}
-                        className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded transition-colors"
+                        onClick={handleLogin}
+                        disabled={!password || !cashierName}
+                        className="w-full bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded transition-colors"
                     >
-                        Entrar
+                        Iniciar Turno
                     </button>
+
+                    <p className="mt-4 text-center text-xs text-gray-500">
+                        Cada venta quedará registrada a nombre de este usuario.
+                    </p>
                 </div>
             </div>
         );
@@ -195,6 +234,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <QuickPOS
                             products={products}
                             tasaBs={tasaBs}
+                            cashierName={cashierName || 'Admin'} // NEW PROP
                             onProcessOrder={async (orderData) => {
                                 const newOrder: Order = {
                                     ...orderData,

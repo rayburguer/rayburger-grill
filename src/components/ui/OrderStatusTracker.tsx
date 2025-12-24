@@ -13,9 +13,9 @@ const OrderStatusTracker: React.FC<OrderStatusTrackerProps> = ({ order, onClose 
 
     const steps = [
         { id: 'pending', label: 'Recibido', icon: Clock, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
-        { id: 'preparing', label: 'En Cocina', icon: ChefHat, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-        { id: 'shipped', label: 'En Camino', icon: Truck, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-        { id: 'delivered', label: 'Entregado', icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10' },
+        // { id: 'preparing', ... } REMOVED for simplification per user request
+        // { id: 'shipped', ... } REMOVED
+        { id: 'delivered', label: 'Listo / Entregado', icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10' },
     ];
 
     const currentStepIndex = steps.findIndex(s => s.id === order.status);

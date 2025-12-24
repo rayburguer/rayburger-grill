@@ -11,7 +11,10 @@ const Footer: React.FC = () => {
                 <p className="text-sm text-gray-300">
                     &copy; {currentYear} RayburgerGrill. Todos los derechos reservados.
                 </p>
-                <div className="flex space-x-4">
+                <div className="flex space-x-4 items-center">
+                    <a href="/admin" className="text-[10px] text-gray-600 hover:text-gray-400 no-underline opacity-50">
+                        Acceso Personal
+                    </a>
                     <a
                         href={INSTAGRAM_URL}
                         target="_blank"

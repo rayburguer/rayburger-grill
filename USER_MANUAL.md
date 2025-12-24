@@ -33,6 +33,12 @@ Gana puntos que valen dinero real en tus próximas compras:
 2. Pásalo a tus amigos por WhatsApp o redes sociales.
 3. **¡Gana el 2% de por vida!** Cada vez que ellos compren usando tu link, tú recibirás dinero en tu cuenta automáticamente.
 
+### 🎁 Códigos Promocionales VIP
+Si recibiste un enlace especial de Ray Burger (por ejemplo, de una invitación exclusiva):
+- Al registrarte, el código vendrá **pre-llenado automáticamente**.
+- Verás un mensaje verde que dice: **"✓ Código Promo Activo (2x Puntos)"**.
+- ¡Esto significa que tu **primera compra valdrá el doble en puntos**! 🔥
+
 ---
 
 ## 🎡 4. Ruleta de Premios

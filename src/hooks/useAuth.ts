@@ -190,7 +190,7 @@ export const useAuth = () => {
         const inputHash = await hashPassword(password);
         let userIndex = registeredUsers.findIndex(u => (u.email === identifier || u.phone === identifier));
 
-        if (userIndex === -1) return false;
+        if (userIndex === -1) return null;
 
         const user = registeredUsers[userIndex];
         let isAuthenticated = false;
@@ -214,9 +214,9 @@ export const useAuth = () => {
             }
             setCurrentUser(userToLogin);
             saveCurrentUserDebounced(userToLogin);
-            return true;
+            return userToLogin;
         }
-        return false;
+        return null;
     }, [registeredUsers, saveCurrentUserDebounced]);
 
     const logout = useCallback(() => {

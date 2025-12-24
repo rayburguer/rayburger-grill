@@ -40,8 +40,13 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
             const codeExists = registeredUsers.some(u =>
                 u.referralCode.toLowerCase() === value.toLowerCase()
             );
+            // System Codes for Marketing
+            const isSystemCode = ['VIP_RAY', 'RAYVIP'].includes(value.toUpperCase());
+
             if (codeExists) {
                 setReferrerError('✓ Código válido'); // Success message
+            } else if (isSystemCode) {
+                setReferrerError('✓ Código Promo Activo (2x Puntos)');
             } else {
                 setReferrerError('✗ Código no encontrado');
             }

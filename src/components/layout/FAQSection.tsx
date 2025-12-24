@@ -33,6 +33,10 @@ const faqs = [
         answer: "Para mantener tus puntos activos, solo debes realizar al menos una compra cada 30 días. Si pasas más de un mes sin actividad, tus puntos expirarán automáticamente."
     },
     {
+        question: "¿Qué es un Código Promocional VIP?",
+        answer: "Si recibiste un enlace especial de Ray Burger (por ejemplo, una invitación del dueño), al registrarte verás un mensaje verde que dice '✓ Código Promo Activo (2x Puntos)'. ¡Esto significa que tu primera compra valdrá el DOBLE en puntos! Es nuestro regalo de bienvenida exclusivo."
+    },
+    {
         question: "¿Qué beneficios tengo al registrarme?",
         answer: "¡Muchos! Recibes 50 puntos de bienvenida ($0.50), accedes a niveles de lealtad con hasta 8% de cashback, puedes girar la Ruleta Semanal, obtienes un código de referido para ganar dinero, y puedes repetir tus pedidos favoritos con un click."
     },

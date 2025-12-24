@@ -56,6 +56,24 @@ const App: React.FC = () => {
     const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState<boolean>(false);
     const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+    const [initialReferralCode, setInitialReferralCode] = useState("");
+
+    // Detect Promo Code from URL
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const promo = params.get('promo');
+        const ref = params.get('ref'); // Support ?ref= for user referrals too
+        if (promo) {
+            setInitialReferralCode(promo);
+            // Auto-open register if promo is present? Maybe too aggressive, but good for conversion.
+            // Let's just set it for when they click register.
+            setIsRegisterModalOpen(true);
+        } else if (ref) {
+            setInitialReferralCode(ref);
+            setIsRegisterModalOpen(true);
+        }
+    }, []);
+
     const [isProductDetailModalOpen, setIsProductDetailModalOpen] = useState<boolean>(false);
     const [selectedProductForDetail, setSelectedProductForDetail] = useState<Product | null>(null);
     const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState<boolean>(false);
@@ -205,16 +223,23 @@ const App: React.FC = () => {
     }, [register, showToast, closeRegister]);
 
     const handleLoginSubmit = useCallback(async (email: string, password: string) => {
-        const success = await login(email, password);
-        if (success) {
+        const loggedInUser = await login(email, password);
+        if (loggedInUser) {
             closeLogin();
             showToast("¡Bienvenido de nuevo!");
+
+            // AUTOMATIC REDIRECT FOR ADMINS
+            if (loggedInUser.role === 'admin') {
+                window.location.href = '/admin';
+            }
+
+            return true;
         } else {
             // showToast("Credenciales inválidas."); // Removed to let Modal handle it inline? Or keep both? Keeping both is fine, but inline is better. 
             // Actually, let's keep toast as backup, but return success so modal knows to shake/error.
             showToast("Credenciales inválidas.");
+            return false;
         }
-        return success;
     }, [login, closeLogin, showToast]);
 
     const handleOrderConfirmed = useCallback(async (buyerEmail: string, buyerName?: string, deliveryInfo?: { method: 'delivery' | 'pickup', fee: number, phone: string }, newRegistrationData?: { password: string }, pointsUsed: number = 0) => {
@@ -624,8 +649,12 @@ const App: React.FC = () => {
                 onOrderConfirmed={handleOrderConfirmed} currentUser={currentUser}
             />
             <RegisterModal
-                isOpen={isRegisterModalOpen} onClose={closeRegister} onRegister={handleUserRegistration}
-                registeredUsers={registeredUsers} onOpenLogin={openLogin} initialReferralCode={initialRefCode}
+                isOpen={isRegisterModalOpen}
+                onClose={closeRegister}
+                onRegister={handleUserRegistration}
+                registeredUsers={registeredUsers}
+                onOpenLogin={() => { closeRegister(); openLogin(); }}
+                initialReferralCode={initialReferralCode}
             />
             <LoginModal isOpen={isLoginModalOpen} onClose={closeLogin} onLogin={handleLoginSubmit} onOpenRegister={openRegister} />
             <ProductDetailModal isOpen={isProductDetailModalOpen} onClose={closeProductDetail} product={selectedProductForDetail} onAddToCart={handleAddToCart} />
