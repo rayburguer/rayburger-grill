@@ -64,6 +64,30 @@ export const useProducts = () => {
                 currentProducts = SAMPLE_PRODUCTS;
             }
 
+            // 🛠️ PHOTO SYNC DOCTOR: 
+            // If we have local products but they still use Unsplash while code has official photos,
+            // we force update the image paths but keep prices and descriptions.
+            const needsPhotoUpdate = currentProducts.some(p => {
+                const official = SAMPLE_PRODUCTS.find(s => s.id === p.id);
+                return official && official.image.startsWith('/') && p.image.includes('unsplash');
+            });
+
+            if (needsPhotoUpdate) {
+                console.log("📸 Photo Doctor: New professional photos detected. Syncing...");
+                const syncedProducts = currentProducts.map(p => {
+                    const official = SAMPLE_PRODUCTS.find(s => s.id === p.id);
+                    if (official && official.image.startsWith('/') && p.image.includes('unsplash')) {
+                        return { ...p, image: official.image };
+                    }
+                    return p;
+                });
+                setProducts(syncedProducts);
+                currentProducts = syncedProducts;
+                safeLocalStorage.setItem('rayburger_products', JSON.stringify(syncedProducts));
+                // We don't await here to not block the boot, but we update cloud in background
+                replaceInCloud('rb_products', syncedProducts);
+            }
+
             // 2. Fetch from Cloud ONLY IF LOCAL IS EMPTY (Initialization Phase)
             // Or if we are using sample data and want to check if there's a real cloud version
             const isUsingSampleData = !storedProducts;
