@@ -244,38 +244,38 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                     {/* Delivery Selection */}
                     <div>
                         <h3 className="text-sm uppercase font-bold tracking-wider text-gray-400 mb-3">Método de Entrega:</h3>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <button
                                 onClick={() => { setDeliveryMethod('pickup'); setDeliveryFee(0); }}
-                                className={`py-3 px-4 rounded-lg border-2 transition-all flex flex-col items-center gap-1 ${deliveryMethod === 'pickup' ? 'border-orange-500 bg-orange-500/10 text-white' : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'}`}
+                                className={`py-3 px-4 rounded-lg border-2 transition-all flex flex-col items-center justify-center gap-1 ${deliveryMethod === 'pickup' ? 'border-orange-500 bg-orange-500/10 text-white' : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'}`}
                             >
-                                <span className="font-bold">🏠 Retiro</span>
+                                <span className="font-bold text-lg">🏠 Retiro</span>
                                 <span className="text-xs">Gratis</span>
                             </button>
                             <div className="flex flex-col gap-2">
-                                <div className={`p-2 rounded-lg border-2 transition-all ${deliveryMethod === 'delivery' ? 'border-orange-500 bg-orange-500/10 text-white' : 'border-gray-700 bg-gray-800 text-gray-400'}`}>
-                                    <span className="text-xs font-bold block mb-2 text-center">🛵 Delivery (Sectores):</span>
-                                    <div className="grid grid-cols-1 gap-2"> {/* Changed to column layout for labels */}
+                                <div className={`p-2 rounded-lg border-2 transition-all h-full ${deliveryMethod === 'delivery' ? 'border-orange-500 bg-orange-500/10 text-white' : 'border-gray-700 bg-gray-800 text-gray-400'}`}>
+                                    <span className="text-xs font-bold block mb-2 text-center underline decoration-orange-500/50">🛵 Delivery:</span>
+                                    <div className="flex flex-col gap-1.5">
                                         <button
                                             onClick={() => { setDeliveryMethod('delivery'); setDeliveryFee(1); }}
-                                            className={`py-2 px-3 rounded text-left text-xs font-bold border transition-colors flex justify-between items-center ${deliveryFee === 1 && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
+                                            className={`py-2 px-3 rounded text-left text-xs font-bold border transition-colors flex justify-between items-center gap-2 ${deliveryFee === 1 && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
                                         >
-                                            <span>Zona 1 <span className="font-normal opacity-70">(Casco Central / La Mora)</span></span>
-                                            <span>$1</span>
+                                            <span className="truncate">Zona 1 <span className="font-normal opacity-70">(Mora)</span></span>
+                                            <span className="shrink-0">$1</span>
                                         </button>
                                         <button
                                             onClick={() => { setDeliveryMethod('delivery'); setDeliveryFee(2); }}
-                                            className={`py-2 px-3 rounded text-left text-xs font-bold border transition-colors flex justify-between items-center ${deliveryFee === 2 && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
+                                            className={`py-2 px-3 rounded text-left text-xs font-bold border transition-colors flex justify-between items-center gap-2 ${deliveryFee === 2 && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
                                         >
-                                            <span>Zona 2 <span className="font-normal opacity-70">(Palma Real / San Homero)</span></span>
-                                            <span>$2</span>
+                                            <span className="truncate">Zona 2 <span className="font-normal opacity-70">(Real)</span></span>
+                                            <span className="shrink-0">$2</span>
                                         </button>
                                         <button
                                             onClick={() => { setDeliveryMethod('delivery'); setDeliveryFee(3); }}
-                                            className={`py-2 px-3 rounded text-left text-xs font-bold border transition-colors flex justify-between items-center ${deliveryFee === 3 && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
+                                            className={`py-2 px-3 rounded text-left text-xs font-bold border transition-colors flex justify-between items-center gap-2 ${deliveryFee === 3 && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
                                         >
-                                            <span>Zona 3 <span className="font-normal opacity-70">(El Consejo)</span></span>
-                                            <span>$3</span>
+                                            <span className="truncate">Zona 3 <span className="font-normal opacity-70">(Consejo)</span></span>
+                                            <span className="shrink-0">$3</span>
                                         </button>
                                     </div>
                                 </div>

@@ -63,12 +63,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
         <Modal isOpen={isOpen} onClose={onClose} title={`Perfil de ${user.name.split(' ')[0]}`}>
             <div className="space-y-4 text-gray-300">
                 <div className="flex flex-col gap-2 bg-gray-800 p-4 rounded-lg border border-gray-700 relative overflow-hidden">
-                    <p className="flex items-center text-lg"><UserCircle className="w-5 h-5 mr-2 text-orange-400" /> <span className="text-white font-semibold">Nombre:</span> {user.name}</p>
-                    <p className="flex items-center text-lg">📞 <span className="text-white font-semibold ml-2">Teléfono:</span> {user.phone}</p>
+                    <p className="flex items-center text-lg overflow-hidden whitespace-nowrap"><UserCircle className="w-5 h-5 mr-4 shrink-0 text-orange-400" /> <span className="text-white font-semibold flex-shrink-0 mr-2">Nombre: </span> <span className="truncate">{user.name}</span></p>
+                    <p className="flex items-center text-lg overflow-hidden whitespace-nowrap">📞 <span className="text-white font-semibold ml-2 flex-shrink-0 mr-2">Teléfono: </span> <span className="truncate">{user.phone}</span></p>
                     {user.email && !user.email.endsWith('@rayburger.app') && (
-                        <p className="flex items-center text-lg">📧 <span className="text-white font-semibold ml-2">Email:</span> {user.email}</p>
+                        <p className="flex items-center text-lg overflow-hidden whitespace-nowrap">📧 <span className="text-white font-semibold ml-2 flex-shrink-0 mr-2">Email: </span> <span className="truncate">{user.email}</span></p>
                     )}
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <p className="flex items-center text-lg">🛡️ <span className="text-white font-semibold ml-2">Rol:</span> <span className={`ml-2 font-bold px-2 rounded ${user.role === 'admin' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-400'}`}>{user.role === 'admin' ? 'ADMINISTRADOR' : 'CLIENTE'}</span></p>
 
                         {/* DOUBLE LAYER ADMIN ACCESS */}
@@ -96,7 +96,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                     </div>
                 </div>
 
-                <div className="pt-2 border-t border-gray-700 grid grid-cols-2 gap-4">
+                <div className="pt-2 border-t border-gray-700 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-gray-800/50 p-4 rounded-lg">
                         <p className="text-sm text-gray-400 mb-1">Nivel Actual</p>
                         <p className="text-2xl font-bold text-orange-400">{user.loyaltyTier}</p>

@@ -25,16 +25,16 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onCtaClick }) => {
                     <motion.img
                         src="/logo.jpg"
                         alt="Ray Burguer Grill Logo"
-                        className="w-64 h-64 mx-auto mb-6 drop-shadow-2xl"
+                        className="w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 mx-auto mb-6 drop-shadow-2xl"
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
                     />
 
-                    <span className="inline-block py-1 px-3 rounded-full bg-orange-500/20 border border-orange-500 text-orange-400 text-sm font-bold uppercase tracking-widest mb-6 backdrop-blur-md">
+                    <span className="inline-block py-1 px-3 rounded-full bg-orange-500/20 border border-orange-500 text-orange-400 text-xs sm:text-sm font-bold uppercase tracking-widest mb-6 backdrop-blur-md">
                         🔥 Somos tu verdadero vicio
                     </span>
-                    <h1 className="font-display text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-400 leading-tight drop-shadow-2xl">
+                    <h1 className="font-display text-4xl sm:text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-400 leading-tight drop-shadow-2xl">
                         SABOR PREMIUM
                         <br />
                         <span className="text-orange-600">A LA PARRILLA</span>
@@ -45,7 +45,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onCtaClick }) => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.4, duration: 0.8 }}
-                    className="mt-6 text-xl md:text-2xl text-gray-300 font-light max-w-2xl mx-auto"
+                    className="mt-6 text-lg sm:text-xl md:text-2xl text-gray-300 font-light max-w-2xl mx-auto px-2"
                 >
                     Street. Food. Crafted. <span className="text-white font-semibold">Cada mordida es una experiencia adictiva.</span>
                 </motion.p>
