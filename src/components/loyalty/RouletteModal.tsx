@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Gift, Clock, Sparkles } from 'lucide-react';
 import { User } from '../../types';
 import { useLoyalty } from '../../hooks/useLoyalty';
+import { useCloudSync } from '../../hooks/useCloudSync';
 import { ROULETTE_COOLDOWN_DAYS, ROULETTE_PRIZES } from '../../config/constants';
 
 interface RouletteModalProps {
@@ -14,6 +15,7 @@ interface RouletteModalProps {
 
 const RouletteModal: React.FC<RouletteModalProps> = ({ isOpen, onClose, currentUser, onUpdateUser, onShowToast }) => {
     const { canSpin, spinRoulette } = useLoyalty();
+    const { pushToCloud, pullFromCloud, isSyncing: cloudSyncing } = useCloudSync();
     const [isSpinning, setIsSpinning] = useState(false);
     const [prize, setPrize] = useState<any | null>(null);
     const [canPlay, setCanPlay] = useState(false);
@@ -30,7 +32,7 @@ const RouletteModal: React.FC<RouletteModalProps> = ({ isOpen, onClose, currentU
 
             if (!available && currentUser.lastSpinDate) {
                 const updateCountdown = () => {
-                    const nextSpin = currentUser.lastSpinDate + (ROULETTE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+                    const nextSpin = Number(currentUser.lastSpinDate) + (ROULETTE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
                     const diff = nextSpin - Date.now();
                     if (diff <= 0) {
                         setCanPlay(true);
@@ -48,17 +50,35 @@ const RouletteModal: React.FC<RouletteModalProps> = ({ isOpen, onClose, currentU
         }
     }, [isOpen, currentUser, canSpin]);
 
-    const handleSpin = () => {
-        if (!currentUser || isSpinning || !canPlay) return;
+    const handleSpin = async () => {
+        if (!currentUser || isSpinning || !canPlay || cloudSyncing) return;
+
+        // 1. ANTI-FRAUD: Pull latest data from cloud to verify lastSpinDate
+        onShowToast("Verificando seguridad...");
+        const { error: pullError } = await pullFromCloud();
+        if (pullError) {
+            onShowToast("Error de conexión. Reintenta.");
+            return;
+        }
+
+        // Re-check after pull
+        const localUsers = JSON.parse(localStorage.getItem('rayburger_registered_users') || '[]');
+        const freshUser = localUsers.find((u: any) => u.email === currentUser.email);
+
+        if (freshUser && !canSpin(freshUser)) {
+            onShowToast("Aún no puedes girar (Sincronizado)");
+            onUpdateUser(freshUser);
+            return;
+        }
 
         setIsSpinning(true);
         setPrize(null);
         setClapperActive(true);
 
-        // 1. Get the result from the hook
-        const { result, updatedUser } = spinRoulette(currentUser);
+        // 2. Get the result from the hook
+        const { result, updatedUser } = spinRoulette(freshUser || currentUser);
 
-        // 2. Calculate the destination angle
+        // 3. Calculate the destination angle
         // Find the index of the prize in the ROULETTE_PRIZES array
         const prizeIndex = ROULETTE_PRIZES.findIndex(p => p.id === result.id);
         const segmentAngle = 360 / ROULETTE_PRIZES.length;
@@ -79,12 +99,18 @@ const RouletteModal: React.FC<RouletteModalProps> = ({ isOpen, onClose, currentU
         setRotation(finalRotation);
 
         // Visual finish
-        setTimeout(() => {
+        setTimeout(async () => {
             setIsSpinning(false);
             setClapperActive(false);
             setPrize(result);
+
+            // 4. Update local state and IMMEDIATELY push to cloud
             onUpdateUser(updatedUser);
             setCanPlay(false);
+
+            // Nuclear push for users
+            const usersToPush = localUsers.map((u: any) => u.email === updatedUser.email ? { ...updatedUser, id: updatedUser.email } : { ...u, id: u.email });
+            await pushToCloud('rb_users', usersToPush);
 
             if (result.type !== 'nothing') {
                 import('canvas-confetti').then((confetti) => {

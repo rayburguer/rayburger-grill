@@ -111,34 +111,43 @@ const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, totalUsd, 
                         <span className="text-orange-500">$ {totalUsd.toFixed(2)} USD</span>
                     </div>
 
-                    {/* UPSELLING SECTION - ACTIVATED */}
+                    {/* PREMIUM UPSELLING SECTION */}
                     {upsellItems.length > 0 && (
-                        <div className="mt-8 border-t border-gray-700 pt-6">
-                            <h3 className="text-sm uppercase font-bold tracking-widest text-orange-400 mb-4 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
-                                ¿Deseas completar tu pedido?
+                        <div className="mt-8 pt-6 border-t border-gray-700/50">
+                            <h3 className="text-xs uppercase font-black tracking-[0.2em] text-orange-500 mb-5 flex items-center justify-center gap-3">
+                                <span className="h-px w-8 bg-orange-500/30"></span>
+                                COMPLETA TU COMBO
+                                <span className="h-px w-8 bg-orange-500/30"></span>
                             </h3>
-                            <div className="grid grid-cols-1 gap-3">
+
+                            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
                                 {upsellItems.map(item => (
-                                    <div key={item.id} className="flex items-center justify-between bg-gray-800/50 p-3 rounded-xl border border-gray-700/50 hover:border-orange-500/30 transition-colors group">
-                                        <div className="flex items-center gap-3">
-                                            <img src={item.image || IMAGE_PLACEHOLDER} alt={item.name} className="w-10 h-10 object-cover rounded-lg group-hover:scale-110 transition-transform" />
-                                            <div>
-                                                <p className="text-sm font-bold text-white">{item.name}</p>
-                                                <p className="text-xs text-orange-400/80 font-medium">${item.basePrice_usd.toFixed(2)} USD</p>
-                                            </div>
+                                    <div
+                                        key={item.id}
+                                        className="flex-none w-48 bg-gray-800/40 rounded-3xl border border-white/5 p-4 snap-center hover:bg-gray-800/60 transition-all group"
+                                    >
+                                        <div className="relative mb-3 flex justify-center">
+                                            <div className="absolute inset-0 bg-orange-500/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                            <img
+                                                src={item.image || IMAGE_PLACEHOLDER}
+                                                alt={item.name}
+                                                className="w-24 h-24 object-contain drop-shadow-2xl group-hover:scale-110 transition-transform duration-500"
+                                            />
                                         </div>
+
+                                        <div className="text-center space-y-1">
+                                            <p className="text-white font-black text-sm uppercase leading-tight line-clamp-1">{item.name}</p>
+                                            <p className="text-orange-400 font-bold text-xs">${item.basePrice_usd.toFixed(2)}</p>
+                                        </div>
+
                                         <button
                                             onClick={() => {
                                                 onQuickAdd(item);
-                                                // CONFETTI EFFECT! 🎉
-                                                import('../../utils/confetti').then(({ triggerConfetti }) => {
-                                                    triggerConfetti();
-                                                });
+                                                import('../../utils/confetti').then(({ triggerConfetti }) => triggerConfetti());
                                             }}
-                                            className="px-4 py-1.5 bg-gray-700 hover:bg-orange-600 text-white text-xs font-bold rounded-full transition-all hover:shadow-[0_0_15px_rgba(234,88,12,0.3)] active:scale-95"
+                                            className="w-full mt-3 py-2 bg-white/5 hover:bg-orange-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-white/10 hover:border-orange-500"
                                         >
-                                            + Añadir
+                                            Añadir +
                                         </button>
                                     </div>
                                 ))}

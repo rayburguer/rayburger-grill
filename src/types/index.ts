@@ -47,7 +47,7 @@ export interface Order {
   pointsEarned: number;
   referrerPointsEarned?: number;
   level2ReferrerPointsEarned?: number;
-  status: 'pending' | 'preparing' | 'shipped' | 'delivered' | 'rejected' | 'approved';
+  status: 'pending' | 'received' | 'preparing' | 'shipped' | 'payment_confirmed' | 'delivered' | 'rejected' | 'approved';
   deliveryMethod: 'delivery' | 'pickup';
   deliveryFee: number;
   customerName?: string; // For Guest/Persistence

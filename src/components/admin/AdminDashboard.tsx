@@ -16,6 +16,7 @@ import { AdminBI } from './AdminBI';
 import { CashRegisterReport } from './CashRegisterReport';
 import { OrderManagement } from './OrderManagement';
 import { persistence } from '../../utils/persistence';
+import { useShift } from '../../hooks/useShift';
 
 interface AdminDashboardProps {
     isOpen: boolean;
@@ -39,6 +40,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const { isAdmin, loginAdmin, logoutAdmin } = useAdmin();
     const { getStats } = useSurveys();
     const { isSyncing } = useCloudSync();
+    const { localOrders, addLocalOrder, clearShift, exportShiftData, isSatelliteMode, setIsSatelliteMode } = useShift();
     const [password, setPassword] = useState('');
     const [cashierName, setCashierName] = useState(() => localStorage.getItem('rayburger_cashier_name') || ''); // NEW: Persist cashier name
     const [activeTab, setActiveTab] = useState<'quick_pos' | 'stats' | 'marketing' | 'cashregister' | 'products' | 'orders' | 'redeem' | 'customers' | 'suggestions' | 'cloud'>('quick_pos');
@@ -73,11 +75,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         ...guestOrders.map(o => ({ ...o, userEmail: 'Invitado', userName: o.customerName || 'Invitado', isGuest: true }))
     ].sort((a, b) => b.timestamp - a.timestamp);
 
+    const pendingOrdersCount = allOrders.filter(o => !o.status || o.status === 'pending' || o.status === 'delivered').length;
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayApprovedOrders = allOrders.filter(o =>
+        (o.status === 'approved' || o.status === 'delivered') &&
+        o.timestamp >= todayStart.getTime()
+    );
+    const todayTotal = todayApprovedOrders.reduce((sum, o) => sum + o.totalUsd, 0);
+
     const surveyStats = getStats();
     const [isEditing, setIsEditing] = useState(false);
     const [currentProduct, setCurrentProduct] = useState<Partial<Product>>({});
 
     if (!isOpen) return null;
+
+    // MOBILE EXIT BUTTON (Added for UX)
+    const MobileExitButton = (
+        <button
+            onClick={onClose}
+            className="lg:hidden fixed top-4 left-4 z-[300] p-2 bg-red-600/90 text-white rounded-full shadow-2xl border border-white/20 active:scale-95 transition-transform"
+            aria-label="Cerrar Admin"
+        >
+            <X size={24} />
+        </button>
+    );
 
     if (!isAdmin) {
         return (
@@ -148,14 +171,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md overflow-y-auto">
             <div className="bg-gray-900 w-full min-h-screen lg:min-h-[auto] lg:max-w-6xl lg:rounded-2xl shadow-xl overflow-hidden flex flex-col pt-20 lg:pt-0">
+                {MobileExitButton}
                 {/* Header */}
                 <div className="bg-gray-800 p-4 lg:p-6 flex flex-col sm:flex-row justify-between items-center border-b border-gray-700 gap-4">
                     <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-2xl lg:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600">
-                                Ray Dashboard
-                            </h2>
-                            <span className="px-2 py-0.5 bg-green-900/50 text-green-400 text-[10px] lg:text-xs rounded-full border border-green-700">Premium</span>
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-2xl lg:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600">
+                                    Ray Dashboard
+                                </h2>
+                                <span className="px-2 py-0.5 bg-green-900/50 text-green-400 text-[10px] lg:text-xs rounded-full border border-green-700">Premium</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] uppercase font-black text-gray-500 tracking-widest">Hoy:</span>
+                                <span className="text-xs font-bold text-green-400 bg-green-900/20 px-2 rounded border border-green-800/50 scale-110 origin-left">
+                                    ${todayTotal.toFixed(2)}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -214,7 +246,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 {tab === 'stats' && <BarChart3 className="w-5 h-5 mb-1" />}
                                 {tab === 'cashregister' && <DollarSign className="w-5 h-5 mb-1" />}
                                 {tab === 'products' && <Edit className="w-5 h-5 mb-1" />}
-                                {tab === 'orders' && <Clock className="w-5 h-5 mb-1 text-orange-400" />}
+                                {tab === 'orders' && (
+                                    <div className="relative">
+                                        <Clock className={`w-5 h-5 mb-1 ${activeTab === 'orders' ? 'text-orange-500' : 'text-orange-400'}`} />
+                                        {pendingOrdersCount > 0 && (
+                                            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-600 border border-white"></span>
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
                                 {tab === 'redeem' && <Gift className="w-5 h-5 mb-1" />}
                                 {tab === 'customers' && <Search className="w-5 h-5 mb-1" />}
                                 {tab === 'suggestions' && <Lightbulb className="w-5 h-5 mb-1" />}
@@ -228,54 +270,196 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     ))}
                 </div>
 
+                {/* POS INFO BAR (Mode Selector & Local Stats) */}
+                <div className="bg-gray-800 border-b border-gray-700 px-6 py-2 flex justify-between items-center text-xs">
+                    <div className="flex items-center gap-4">
+                        <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
+                            <button
+                                onClick={() => setIsSatelliteMode(false)}
+                                className={`px-3 py-1 rounded-md font-bold transition-all ${!isSatelliteMode ? 'bg-orange-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                            >
+                                Maestro
+                            </button>
+                            <button
+                                onClick={() => setIsSatelliteMode(true)}
+                                className={`px-3 py-1 rounded-md font-bold transition-all ${isSatelliteMode ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                            >
+                                Satélite (Offline)
+                            </button>
+                        </div>
+                        <span className={`font-bold ${isSatelliteMode ? 'text-blue-400' : 'text-green-400'}`}>
+                            {isSatelliteMode ? '📦 Trabajando Localmente' : '☁️ Sincronización en Nube'}
+                        </span>
+                    </div>
+
+                    {isSatelliteMode && (
+                        <div className="flex items-center gap-3">
+                            <span className="text-gray-400">Ventas Turno: <b className="text-white">{localOrders.length}</b></span>
+                            <button
+                                onClick={() => {
+                                    const base64 = exportShiftData();
+                                    const msg = `🧾 *Turno Ray Burger*\nEquipo: ${cashierName || 'POS'}\nVentas: ${localOrders.length}\nTotal: $${localOrders.reduce((s, o) => s + o.totalUsd, 0).toFixed(2)}\n\nCódigo de Importación:\n${base64}`;
+                                    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                                    onShowToast('📋 Reporte enviado a WhatsApp');
+                                }}
+                                className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white rounded font-bold transition-colors flex items-center gap-1.5"
+                            >
+                                <RefreshCw size={12} /> Cerrar y Exportar
+                            </button>
+                            <button onClick={clearShift} className="text-red-500 hover:text-red-400 p-1" title="Limpiar Turno">
+                                <Trash2 size={14} />
+                            </button>
+                        </div>
+                    ) || (
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => {
+                                        const input = prompt('Pegue el código de exportación del satélite aquí:');
+                                        if (input) {
+                                            try {
+                                                const data = JSON.parse(atob(input));
+                                                if (data.orders && Array.isArray(data.orders)) {
+                                                    let importedCount = 0;
+                                                    let pointsAddedCount = 0;
+                                                    let skippedCount = 0;
+
+                                                    const newGuestOrders = [...guestOrders];
+                                                    let currentUsers = [...registeredUsers];
+
+                                                    // Helper to check duplicates
+                                                    const isDuplicate = (id: string) => {
+                                                        const inGuests = newGuestOrders.some(o => o.orderId === id);
+                                                        const inUsers = currentUsers.some(u => u.orders?.some(o => o.orderId === id));
+                                                        return inGuests || inUsers;
+                                                    };
+
+                                                    data.orders.forEach((order: Order) => {
+                                                        // IDEMPOTENCY CHECK
+                                                        if (isDuplicate(order.orderId)) {
+                                                            skippedCount++;
+                                                            return;
+                                                        }
+
+                                                        importedCount++;
+                                                        const existingUser = order.customerPhone ? currentUsers.find(u => u.phone === order.customerPhone) : null;
+
+                                                        if (existingUser) {
+                                                            // Update existing user: points + order
+                                                            const isAdmin = existingUser.role === 'admin';
+                                                            const pointsToSum = isAdmin ? 0 : (order.pointsEarned || 0);
+
+                                                            const updatedUser = {
+                                                                ...existingUser,
+                                                                points: (existingUser.points || 0) + pointsToSum,
+                                                                orders: [...(existingUser.orders || []), order]
+                                                            };
+                                                            currentUsers = currentUsers.map(u => u.email === existingUser.email ? updatedUser : u);
+                                                            if (pointsToSum > 0) pointsAddedCount++;
+                                                        } else {
+                                                            // Add to guest orders
+                                                            newGuestOrders.unshift(order);
+                                                        }
+                                                    });
+
+                                                    updateUsers(currentUsers);
+                                                    updateGuestOrders(newGuestOrders);
+                                                    onShowToast(`✅ ${importedCount} ventas importadas. (${skippedCount} duplicadas omitidas)`);
+                                                }
+                                            } catch (e) {
+                                                console.error('Import error:', e);
+                                                onShowToast('❌ Código de importación inválido');
+                                            }
+                                        }
+                                    }}
+                                    className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition-colors flex items-center gap-1.5"
+                                >
+                                    <Upload size={12} /> Importar Turno
+                                </button>
+                            </div>
+                        )}
+                </div>
+
                 {/* Content */}
                 <div className="p-0 flex-1 overflow-y-auto max-h-[75vh]">
                     {activeTab === 'quick_pos' && (
                         <QuickPOS
                             products={products}
                             tasaBs={tasaBs}
-                            cashierName={cashierName || 'Admin'} // NEW PROP
+                            cashierName={cashierName || 'Admin'}
                             onProcessOrder={async (orderData) => {
+                                // Business Logic for POS Rewards
+                                const existingUser = orderData.customerPhone ? registeredUsers.find(u => u.phone === orderData.customerPhone) : null;
+                                const isAdminBuyer = existingUser?.role === 'admin';
+
                                 const newOrder: Order = {
                                     ...orderData,
                                     orderId: `POS-${Date.now()}`,
                                     timestamp: Date.now(),
-                                    pointsEarned: Math.floor(orderData.totalUsd), // 1 point per USD
+                                    // HONESTY RULE: Admins get 0 points in POS
+                                    pointsEarned: isAdminBuyer ? 0 : Math.floor(orderData.totalUsd),
                                     status: 'approved'
                                 };
 
-                                // Quick Registration Logic
+                                let whatsappMessage = '';
+
                                 if (orderData.customerPhone) {
-                                    const existingUser = registeredUsers.find(u => u.phone === orderData.customerPhone);
                                     if (existingUser) {
                                         // Update existing user points
                                         const updatedUser = {
                                             ...existingUser,
-                                            points: existingUser.points + newOrder.pointsEarned,
-                                            orders: [...existingUser.orders, newOrder]
+                                            points: (existingUser.points || 0) + (newOrder.pointsEarned || 0),
+                                            orders: [...(existingUser.orders || []), newOrder]
                                         };
                                         updateUsers(registeredUsers.map(u => u.email === existingUser.email ? updatedUser : u));
-                                        onShowToast(`🌟 ${newOrder.pointsEarned} puntos sumados a ${existingUser.name}`);
+
+                                        if (isAdminBuyer) {
+                                            onShowToast(`👔 Admin detectado: Venta registrada (sin puntos)`);
+                                        } else {
+                                            onShowToast(`🌟 ${newOrder.pointsEarned} puntos sumados a ${existingUser.name}`);
+                                        }
+
+                                        // Standard Receipt for existing customers
+                                        const totalBs = (orderData.totalUsd * tasaBs).toFixed(2);
+                                        whatsappMessage = `🧾 *Recibo Ray Burger*\n\nGracias por tu compra de $${orderData.totalUsd.toFixed(2)} (${totalBs} Bs).\n\n¡Disfruta tu pedido! 🍔\n\n*Saldo Actual:* ${updatedUser.points} puntos.`;
+
                                     } else {
-                                        // Create new Quick User
+                                        // New Customer - Invitation Flow
                                         const newUser: User = {
                                             email: `${orderData.customerPhone}@pos.ray`,
                                             phone: orderData.customerPhone,
                                             name: 'Cliente Nuevo',
                                             role: 'customer',
                                             loyaltyTier: 'Bronze',
-                                            points: 50 + newOrder.pointsEarned, // Welcome bonus + purchase
+                                            points: 50 + (newOrder.pointsEarned || 0), // Welcome bonus + purchase
                                             orders: [newOrder],
                                             passwordHash: '1234', // Temp password
-                                            referralCode: `POS-${Date.now()}`
+                                            referralCode: `RB-POS-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+                                            referredByCode: 'FUNDADOR' // Auto-tag as Founder lead for tracking
                                         };
                                         updateUsers([...registeredUsers, newUser]);
-                                        onShowToast(`🎉 Cliente nuevo registrado! (+50 pts bono)`);
+                                        onShowToast(`🎉 ¡Cliente nuevo registrado! (+50 pts bono)`);
+
+                                        // VIRAL INVITATION Message
+                                        const totalBs = (orderData.totalUsd * tasaBs).toFixed(2);
+                                        whatsappMessage = `🍔 ¡Bienvenido a Ray Burger!\n\nAcabamos de registrar tu compra de $${orderData.totalUsd.toFixed(2)} (${totalBs} Bs).\n\n🎁 *TE REGALAMOS $50* de bienvenida en puntos para tu próxima compra.\n\nRegístrate aquí para ver tus puntos y ganar más:\n👉 https://rayburgergrill.com.ve/?ref=FUNDADOR\n\n¡Gracias por elegirnos! 🔥`;
                                     }
+
+                                    // Trigger WhatsApp
+                                    const whatsappUrl = `https://wa.me/${orderData.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappMessage)}`;
+                                    window.open(whatsappUrl, '_blank');
                                 } else {
                                     // Anonymous Order
-                                    updateGuestOrders([newOrder, ...guestOrders]);
+                                    if (isSatelliteMode) {
+                                        addLocalOrder(newOrder);
+                                    } else {
+                                        updateGuestOrders([newOrder, ...guestOrders]);
+                                    }
                                     onShowToast('✅ Venta anónima registrada');
+                                }
+
+                                // Satellite special: Always save locally even if registration fails
+                                if (isSatelliteMode && orderData.customerPhone) {
+                                    addLocalOrder(newOrder);
                                 }
                             }}
                         />
@@ -324,9 +508,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             updateUsers={updateUsers}
                             guestOrders={guestOrders}
                             updateGuestOrders={updateGuestOrders}
-                            products={products}
-                            updateProduct={updateProduct}
                             highlightOrderId={initialOrderId}
+                            allProducts={products}
                         />
                     )}
 

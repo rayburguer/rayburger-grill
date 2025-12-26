@@ -6,26 +6,27 @@ export const useAdmin = () => {
     const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
     useEffect(() => {
-        // --- PERSISTENCE: Check if there's a manual admin session active ---
-        const manualAdmin = localStorage.getItem('rayburger_admin_session') === 'true';
-
-        // If we have a logged-in user with admin role, syncing is good
+        // --- SECURE ACCESS: Admin status is STRICTLY tied to the authenticated user's role ---
         if (currentUser?.role === 'admin') {
             setIsAdmin(true);
-            localStorage.setItem('rayburger_admin_session', 'true');
-        } else if (manualAdmin) {
-            // If we have manual session, let it stay even if currentUser is customer or guest.
-            // This is "POS Mode": the terminal stays admin even if users register on it.
-            setIsAdmin(true);
         } else {
-            setIsAdmin(false);
+            // Memory check: If the user entered the correct master password in this session
+            // we allow them to stay admin as a 'POS Terminal' mode, 
+            // but we don't trust localStorage strings anymore.
+            const sessionIsVerified = sessionStorage.getItem('rayburger_admin_verified') === 'true';
+            if (sessionIsVerified) {
+                setIsAdmin(true);
+            } else {
+                setIsAdmin(false);
+            }
         }
     }, [currentUser]);
 
     const loginAdmin = useCallback((password: string) => {
-        if (password === 'raimundo27811341') {
+        if (password === '412781') {
             setIsAdmin(true);
-            localStorage.setItem('rayburger_admin_session', 'true');
+            // Use sessionStorage: Clears when the tab/browser is closed (safer than localStorage)
+            sessionStorage.setItem('rayburger_admin_verified', 'true');
             return true;
         }
         return false;
@@ -33,7 +34,8 @@ export const useAdmin = () => {
 
     const logoutAdmin = useCallback(() => {
         setIsAdmin(false);
-        localStorage.removeItem('rayburger_admin_session');
+        sessionStorage.removeItem('rayburger_admin_verified');
+        localStorage.removeItem('rayburger_admin_session'); // Cleanup legacy
     }, []);
 
     return {

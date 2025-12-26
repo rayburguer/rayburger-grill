@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { UserCircle, ClipboardCopy, MessageSquare, RefreshCw } from 'lucide-react';
 import Modal from '../ui/Modal';
 import { User, Order } from '../../types';
@@ -16,9 +17,8 @@ interface UserProfileModalProps {
 }
 
 const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, user, onShowToast, onReorder, onClaimAdmin }) => {
-    if (!user) return null;
+    const navigate = useNavigate();
 
-    const isOwner = user.name.toLowerCase().includes('ray') || user.name.toLowerCase().includes('raimundo');
 
     const handleCopyReferralCode = useCallback(async () => {
         if (user?.referralCode) {
@@ -32,13 +32,15 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
         }
     }, [user, onShowToast]);
 
-    // Calculate Pending Points
-    const pendingPoints = user.orders
+    // Move other hooks here if any
+
+    // Calculate Pending Points (Safe, just JS logic)
+    const pendingPoints = user?.orders
         .filter(o => o.status === 'pending' || !o.status)
-        .reduce((sum, o) => sum + (o.pointsEarned || 0), 0);
+        .reduce((sum, o) => sum + (o.pointsEarned || 0), 0) || 0;
 
     // Get last approved order for reorder
-    const lastApprovedOrder = user.orders
+    const lastApprovedOrder = user?.orders
         .filter(o => o.status === 'approved')
         .sort((a, b) => b.timestamp - a.timestamp)[0];
 
@@ -48,6 +50,14 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
             onClose();
         }
     }, [lastApprovedOrder, onReorder, onClose]);
+
+    if (!user) return null;
+
+    const isOwner = (
+        user.email === 'raimundovivas17@gmail.com' ||
+        ['04128344594', '04243439729', '04162101833'].includes(user.phone) ||
+        user.role === 'admin' // Keep existing admins as owners too
+    );
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Perfil de ${user.name.split(' ')[0]}`}>
@@ -60,6 +70,19 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                     )}
                     <div className="flex items-center justify-between">
                         <p className="flex items-center text-lg">🛡️ <span className="text-white font-semibold ml-2">Rol:</span> <span className={`ml-2 font-bold px-2 rounded ${user.role === 'admin' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-400'}`}>{user.role === 'admin' ? 'ADMINISTRADOR' : 'CLIENTE'}</span></p>
+
+                        {/* DOUBLE LAYER ADMIN ACCESS */}
+                        {user.role === 'admin' && (
+                            <button
+                                onClick={() => {
+                                    onClose();
+                                    navigate('/admin');
+                                }}
+                                className="ml-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black px-4 py-2 rounded-xl shadow-lg shadow-purple-900/40 border border-purple-400/50 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                            >
+                                🔐 ENTRAMOS A MODO ADMIN
+                            </button>
+                        )}
 
                         {/* SECRET OWNER RECOVERY BUTTON */}
                         {isOwner && user.role !== 'admin' && onClaimAdmin && (

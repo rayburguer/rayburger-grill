@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Product, Order, User } from '../../types';
+import { Product } from '../../types';
 import { Plus, Minus, Trash2, ShoppingBag, CreditCard, Banknote, Smartphone } from 'lucide-react';
-import { useCart } from '../../hooks/useCart'; // We might reuse cart logic or build a simple local one for POS
 
 interface QuickPOSProps {
     products: Product[];
@@ -15,6 +14,7 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
     const [posCart, setPosCart] = useState<{ product: Product; quantity: number }[]>([]);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'pago_movil' | 'zelle'>('pago_movil');
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Filter out unavailable products
     const availableProducts = useMemo(() => products.filter(p => p.isAvailable !== false), [products]);
@@ -53,17 +53,29 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
     const cartTotalUsd = posCart.reduce((sum, item) => sum + (item.product.basePrice_usd * item.quantity), 0);
     const cartTotalBs = cartTotalUsd * tasaBs;
 
-    const filteredProducts = selectedCategory === 'Todos'
-        ? availableProducts
-        : availableProducts.filter(p => p.category === selectedCategory);
+    const filteredProducts = useMemo(() => {
+        let result = selectedCategory === 'Todos'
+            ? availableProducts
+            : availableProducts.filter(p => p.category === selectedCategory);
+
+        if (searchTerm.trim()) {
+            const search = searchTerm.toLowerCase();
+            result = result.filter(p =>
+                p.name.toLowerCase().includes(search) ||
+                p.category.toLowerCase().includes(search)
+            );
+        }
+        return result;
+    }, [availableProducts, selectedCategory, searchTerm]);
 
     const [customerPhone, setCustomerPhone] = useState('');
 
     const handleCheckout = async () => {
         if (posCart.length === 0) return;
 
-        // Construct simplified order object
         const orderData = {
+            orderId: Math.random().toString(36).substring(2, 9).toUpperCase(),
+            timestamp: Date.now(),
             items: posCart.map(item => ({
                 name: item.product.name,
                 quantity: item.quantity,
@@ -73,18 +85,12 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
             paymentMethod: paymentMethod,
             deliveryMethod: 'pickup',
             deliveryFee: 0,
-            customerName: customerPhone ? 'Cliente Registrado' : 'Cliente en Local', // Placeholder name if phone provided
-            customerPhone: customerPhone || undefined, // Store phone if provided
-            status: 'approved',
-            processedBy: cashierName // NEW: Attach staff identity
+            customerName: customerPhone ? 'Cliente Registrado' : 'Cliente en Local',
+            customerPhone: customerPhone || undefined,
+            status: 'approved', // Status set to approved as per POS requirement
+            processedBy: cashierName,
+            pointsEarned: Math.floor(cartTotalUsd * 3) // POS standard: 3% reward
         };
-
-        if (customerPhone) {
-            // WhatsApp Link for receipt (simulated)
-            const message = `🧾 *Recibo Ray Burger*\n\nGracias por tu compra de $${cartTotalUsd.toFixed(2)}.\n\nDisfruta tu pedido! 🍔`;
-            const whatsappUrl = `https://wa.me/${customerPhone}?text=${encodeURIComponent(message)}`;
-            window.open(whatsappUrl, '_blank');
-        }
 
         await onProcessOrder(orderData);
         setPosCart([]);
@@ -94,15 +100,36 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
 
     return (
         <div className="flex flex-col h-full bg-gray-900">
+            {/* Search Bar */}
+            <div className="p-2 bg-gray-800 border-b border-gray-700 flex gap-2">
+                <div className="relative flex-1">
+                    <input
+                        type="text"
+                        placeholder="Buscar producto..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white text-sm outline-none focus:border-orange-500"
+                    />
+                    {searchTerm && (
+                        <button
+                            onClick={() => setSearchTerm('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                        >
+                            <Plus className="rotate-45" size={16} />
+                        </button>
+                    )}
+                </div>
+            </div>
+
             {/* Top Bar: Categories */}
-            <div className="flex overflow-x-auto gap-2 p-2 bg-gray-800 border-b border-gray-700 hide-scrollbar shrink-0">
+            <div className="flex overflow-x-auto gap-2 p-2 bg-gray-800/50 border-b border-gray-700 hide-scrollbar shrink-0">
                 {categories.map(cat => (
                     <button
                         key={cat}
                         onClick={() => setSelectedCategory(cat)}
-                        className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-colors ${selectedCategory === cat
-                            ? 'bg-orange-600 text-white'
-                            : 'bg-gray-700 text-gray-300'
+                        className={`px-4 py-1.5 rounded-full whitespace-nowrap text-xs font-bold transition-colors border ${selectedCategory === cat
+                            ? 'bg-orange-600 border-orange-500 text-white'
+                            : 'bg-gray-800 border-gray-700 text-gray-400'
                             }`}
                     >
                         {cat}

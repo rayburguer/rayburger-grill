@@ -55,8 +55,34 @@ export const useProducts = () => {
                 if (JSON.stringify(fixedProducts) !== JSON.stringify(currentProducts)) {
                     console.log("🩺 Menu Doctor: Fixed incorrect categories detected in local storage.");
                     currentProducts = fixedProducts;
-                    safeLocalStorage.setItem('rayburger_products', JSON.stringify(fixedProducts));
                 }
+
+                // 🛠️ FEATURE DOCTOR: Auto-Inject "Con/Sin" options for Vegetables and Sauces
+                const standardOptions = [
+                    { id: 'opt_veg', name: 'Vegetales (Lechuga/Tomate)', price_usd: 0, defaultIncluded: true },
+                    { id: 'opt_onion', name: 'Cebolla', price_usd: 0, defaultIncluded: true },
+                    { id: 'opt_sauces', name: 'Salsas Tradicionales', price_usd: 0, defaultIncluded: true },
+                ];
+
+                const enrichedProducts = currentProducts.map(p => {
+                    if (['Hamburguesas', 'Perros'].includes(p.category)) {
+                        const hasVeg = p.customizableOptions?.some(o => o.id.includes('veg') || o.id.includes('onion'));
+                        if (!hasVeg) {
+                            return {
+                                ...p,
+                                customizableOptions: [...(p.customizableOptions || []), ...standardOptions]
+                            };
+                        }
+                    }
+                    return p;
+                });
+
+                if (JSON.stringify(enrichedProducts) !== JSON.stringify(currentProducts)) {
+                    console.log("🥬 Feature Doctor: Standard options (Veg/Sauces) injected.");
+                    currentProducts = enrichedProducts;
+                    safeLocalStorage.setItem('rayburger_products', JSON.stringify(enrichedProducts));
+                }
+
                 setProducts(currentProducts);
             } else {
                 // If local is EMPTY, we use SAMPLE_PRODUCTS first

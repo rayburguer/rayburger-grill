@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import App from './src/App';
 import './src/index.css';
+import { AuthProvider } from './src/context/AuthContext';
 
 import ErrorBoundary from './src/components/ui/ErrorBoundary';
 
@@ -10,18 +11,18 @@ window.onerror = function (message, source, lineno, colno, error) {
   // Optional: alert("Error Crítico: " + message); // Uncomment to debug broadly
 };
 
+import { BrowserRouter } from 'react-router-dom';
+
 const container = document.getElementById('root');
 if (container) {
-  // --- CACHE BUSTER FORCED v4 ---
-  const CURRENT_APP_VERSION = '4.0.0';
-  // Cache buster logic removed for stability
-  // if (storedVersion !== CURRENT_APP_VERSION) { ... }
-  // ------------------------------
-
   const root = createRoot(container);
   root.render(
     <ErrorBoundary>
-      <App />
+      <AuthProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </AuthProvider>
     </ErrorBoundary>
   );
   // EMERGENCY SERVICE WORKER DEACTIVATION

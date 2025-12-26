@@ -9,37 +9,31 @@ interface OrderManagementProps {
     updateUsers: (users: User[]) => void;
     guestOrders: Order[];
     updateGuestOrders: (updatedOrders: Order[]) => void;
-    products: Product[];
-    updateProduct: (p: Product) => void;
     highlightOrderId?: string; // For deep linking
+    allProducts: Product[]; // NEW: To resolve option names
 }
 
 export const OrderManagement: React.FC<OrderManagementProps> = ({
-    registeredUsers, updateUsers, guestOrders, updateGuestOrders, products, updateProduct, highlightOrderId
+    registeredUsers, updateUsers, guestOrders, updateGuestOrders, highlightOrderId, allProducts
 }) => {
     const { confirmOrderRewards, rejectOrder } = useLoyalty();
     const [searchTerm, setSearchTerm] = useState('');
-    const [filter, setFilter] = useState<'pending' | 'preparing' | 'shipped' | 'approved' | 'rejected' | 'all'>('pending');
+    const [filter, setFilter] = useState<'pending' | 'received' | 'preparing' | 'shipped' | 'payment_confirmed' | 'approved' | 'rejected' | 'all'>('all');
 
-    const restoreStock = (orderItems: { name: string; quantity: number }[]) => {
-        orderItems.forEach(item => {
-            const product = products.find(p => p.name === item.name);
-            if (product && product.stockQuantity !== undefined) {
-                const newStock = product.stockQuantity + item.quantity;
-                updateProduct({ ...product, stockQuantity: newStock });
-            }
-        });
-    };
-
-    const deductStock = (orderItems: { name: string; quantity: number }[]) => {
-        orderItems.forEach(item => {
-            const product = products.find(p => p.name === item.name);
-            if (product && product.stockQuantity !== undefined) {
-                const newStock = Math.max(0, product.stockQuantity - item.quantity);
-                updateProduct({ ...product, stockQuantity: newStock });
-            }
-        });
-    };
+    // EFFECT: Auto-scroll to highlighted order if provided via deep link
+    React.useEffect(() => {
+        if (highlightOrderId) {
+            setFilter('all');
+            setSearchTerm(highlightOrderId);
+            setTimeout(() => {
+                const element = document.getElementById(`order-${highlightOrderId}`);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    element.classList.add('ring-2', 'ring-orange-500', 'animate-pulse');
+                }
+            }, 500);
+        }
+    }, [highlightOrderId]);
 
     // ... (rest of filtering logic)
 
@@ -74,13 +68,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     };
 
     const handleReject = (orderId: string, userEmail: string, isGuest: boolean) => {
-        const orderToReject = allOrders.find(o => o.orderId === orderId);
         if (confirm(`¿Rechazar pedido de ${userEmail}?`)) {
-            // Restore stock if it was already deducted (preparing or shipped)
-            if (orderToReject && (orderToReject.status === 'preparing' || orderToReject.status === 'shipped')) {
-                restoreStock(orderToReject.items);
-            }
-
             if (isGuest) {
                 const updated = guestOrders.map(o => o.orderId === orderId ? { ...o, status: 'rejected' as const } : o);
                 updateGuestOrders(updated);
@@ -127,7 +115,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                     <p className="text-center text-gray-400 py-10">No se encontraron pedidos.</p>
                 ) : (
                     filteredOrders.map(order => (
-                        <div key={order.orderId} className="bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-gray-500 transition-colors">
+                        <div key={order.orderId} id={`order-${order.orderId}`} className="bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-gray-500 transition-colors">
                             <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
@@ -138,9 +126,11 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                                                     order.status === 'shipped' ? 'bg-purple-900 text-purple-400' :
                                                         'bg-yellow-900 text-yellow-500' // Pending
                                             }`}>
-                                            {order.status === 'preparing' ? 'EN COCINA' :
-                                                order.status === 'shipped' ? 'EN CAMINO' :
-                                                    (order.status || 'PENDING')}
+                                            {order.status === 'received' ? 'RECIBIDO' :
+                                                order.status === 'preparing' ? 'EN COCINA' :
+                                                    order.status === 'shipped' ? 'EN CAMINO' :
+                                                        order.status === 'payment_confirmed' ? 'PAGO OK' :
+                                                            (order.status || 'PENDING')}
                                         </span>
                                     </div>
                                     <p className="text-sm text-gray-400">
@@ -158,64 +148,57 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                                 </div>
                             </div>
 
-                            {/* Items */}
                             <div className="bg-gray-900/50 p-3 rounded mb-4 text-sm text-gray-300">
-                                {order.items.map((item, idx) => (
-                                    <div key={idx} className="flex justify-between border-b border-gray-800 last:border-0 py-1">
-                                        <span>{item.quantity}x {item.name}</span>
-                                        <span>${(item.price_usd * item.quantity).toFixed(2)}</span>
-                                    </div>
-                                ))}
+                                {order.items.map((item, idx) => {
+                                    const product = allProducts.find(p => p.name === item.name);
+                                    const customizations = item.selectedOptions && product?.customizableOptions?.map((opt: any) => {
+                                        const isSelected = item.selectedOptions![opt.id];
+                                        if (opt.defaultIncluded && !isSelected) return `SIN ${opt.name.toUpperCase()}`;
+                                        if (!opt.defaultIncluded && isSelected) return `EXTRA ${opt.name.toUpperCase()}`;
+                                        return null;
+                                    }).filter(Boolean).join(', ');
+
+                                    return (
+                                        <div key={idx} className="flex flex-col border-b border-gray-800 last:border-0 py-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-bold">{item.quantity}x {item.name}</span>
+                                                <span className="font-mono">${(item.price_usd * item.quantity).toFixed(2)}</span>
+                                            </div>
+                                            {customizations && (
+                                                <span className="text-[10px] text-orange-400 font-black tracking-widest mt-1">
+                                                    ✨ {customizations}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
 
-                            {/* Actions - Workflow Statuses */}
-                            {order.status !== 'rejected' && order.status !== 'approved' && order.status !== 'delivered' && (
-                                <div className="flex flex-wrap justify-end gap-2 mt-4">
-                                    {/* Reject always possible if not final */}
-                                    <button
-                                        onClick={() => handleReject(order.orderId, order.userEmail, !!order.isGuest)}
-                                        className="px-3 py-2 bg-red-900/20 text-red-500 hover:bg-red-900/40 rounded transition-colors text-xs font-bold border border-red-900/30"
-                                    >
-                                        Rechazar
-                                    </button>
-
+                            {/* Actions - Simplified 3-Step Workflow */}
+                            {order.status !== 'rejected' && order.status !== 'approved' && (
+                                <div className="flex flex-col gap-3 mt-4">
+                                    {/* STEP 1: PENDING -> DELIVERED */}
                                     {(!order.status || order.status === 'pending') && (
                                         <button
                                             onClick={() => {
-                                                deductStock(order.items);
                                                 const updated = order.isGuest
-                                                    ? guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: 'preparing' as const } : o)
-                                                    : registeredUsers.map(u => u.email === order.userEmail ? { ...u, orders: u.orders.map(o => o.orderId === order.orderId ? { ...o, status: 'preparing' as const } : o) } : u);
+                                                    ? guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: 'delivered' as const } : o)
+                                                    : registeredUsers.map(u => u.email === order.userEmail ? { ...u, orders: u.orders.map(o => o.orderId === order.orderId ? { ...o, status: 'delivered' as const } : o) } : u);
 
                                                 if (order.isGuest) updateGuestOrders(updated as Order[]);
                                                 else updateUsers(updated as User[]);
                                             }}
-                                            className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded font-bold text-sm shadow-lg shadow-orange-900/20"
+                                            className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black text-lg shadow-lg flex items-center justify-center gap-2"
                                         >
-                                            👨‍🍳 A Cocina
+                                            🚚 MARCAR ENTREGADO
                                         </button>
                                     )}
 
-                                    {order.status === 'preparing' && (
+                                    {/* STEP 2: DELIVERED -> APPROVED (Final & Points) */}
+                                    {order.status === 'delivered' && (
                                         <button
-                                            onClick={() => {
-                                                const updated = order.isGuest
-                                                    ? guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: 'shipped' as const } : o)
-                                                    : registeredUsers.map(u => u.email === order.userEmail ? { ...u, orders: u.orders.map(o => o.orderId === order.orderId ? { ...o, status: 'shipped' as const } : o) } : u);
-
-                                                if (order.isGuest) updateGuestOrders(updated as Order[]);
-                                                else updateUsers(updated as User[]);
-                                            }}
-                                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-bold text-sm shadow-lg shadow-purple-900/20"
-                                        >
-                                            🛵 Despachar
-                                        </button>
-                                    )}
-
-                                    {order.status === 'shipped' && (
-                                        <button
-                                            onClick={() => {
-                                                if (confirm('¿Confirmar entrega y otorgar puntos?')) {
+                                            onClick={async () => {
+                                                if (confirm('¿Confirmar pago recibido y otorgar puntos?')) {
                                                     if (order.isGuest) {
                                                         const updated = guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: 'approved' as const } : o);
                                                         updateGuestOrders(updated);
@@ -223,36 +206,50 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                                                         const updatedUsers = confirmOrderRewards(order.orderId, order.userEmail, registeredUsers);
                                                         updateUsers(updatedUsers);
                                                     }
+                                                    // CONFETTI CELEBRATION! 🎊
+                                                    const { triggerConfetti } = await import('../../utils/confetti');
+                                                    triggerConfetti();
                                                 }
                                             }}
-                                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-bold text-sm shadow-lg shadow-green-900/20"
+                                            className="w-full py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] flex items-center justify-center gap-2 transform active:scale-95 transition-all"
                                         >
-                                            ✅ Entregado
+                                            💰 PAGO RECIBIDO / CERRAR
                                         </button>
                                     )}
 
-                                    {/* Quick Approve for transition */}
+                                    <div className="flex gap-2">
+                                        {/* Reject Button (Smaller but accessible) */}
+                                        <button
+                                            onClick={() => handleReject(order.orderId, order.userEmail, !!order.isGuest)}
+                                            className="flex-1 py-3 bg-red-900/20 text-red-500 hover:bg-red-900/40 rounded-xl transition-colors text-sm font-bold border border-red-900/30"
+                                        >
+                                            Rechazar
+                                        </button>
+
+                                        {/* WhatsApp Quick Link */}
+                                        {order.customerPhone && (
+                                            <button
+                                                onClick={() => {
+                                                    let text = '';
+                                                    if (order.status === 'delivered') text = `✅ Hola ${order.userName}, ¡Tu pedido fue entregado! ¿Todo bien?`;
+                                                    else text = `🛍️ Hola ${order.userName}, recibimos tu pedido en Ray Burger.`;
+
+                                                    window.open(`https://wa.me/${order.customerPhone?.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
+                                                }}
+                                                className="flex-1 py-3 bg-green-600/20 text-green-400 hover:bg-green-600/40 border border-green-600/30 rounded-xl transition-colors text-sm font-bold flex items-center justify-center gap-1"
+                                            >
+                                                📲 Mensaje
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Direct Bypass for Admin Errors */}
                                     {(!order.status || order.status === 'pending') && (
                                         <button
                                             onClick={() => handleApprove(order.orderId, order.userEmail, !!order.isGuest)}
-                                            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-bold"
+                                            className="w-full py-2 text-gray-500 hover:text-gray-400 text-[10px] font-bold uppercase tracking-widest"
                                         >
-                                            Aprobación Directa
-                                        </button>
-                                    )}
-                                    {/* Smart WhatsApp Notification */}
-                                    {order.customerPhone && (!order.processedBy || order.deliveryMethod === 'delivery') && (
-                                        <button
-                                            onClick={() => {
-                                                const isDelivery = order.deliveryMethod === 'delivery';
-                                                const text = isDelivery
-                                                    ? `🛵 Hola ${order.userName}, ¡Tu pedido de Ray Burger va en camino! Atentos a la entrega.`
-                                                    : `🛍️ Hola ${order.userName}, ¡Tu pedido de Ray Burger está LISTO para retirar! Te esperamos.`;
-                                                window.open(`https://wa.me/${order.customerPhone?.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
-                                            }}
-                                            className="px-3 py-2 bg-green-600/20 text-green-400 hover:bg-green-600/40 border border-green-600/30 rounded transition-colors text-xs font-bold flex items-center gap-1"
-                                        >
-                                            <span className="text-lg">📲</span> {order.deliveryMethod === 'delivery' ? 'Avisar Delivery' : 'Avisar Retiro'}
+                                            Aprobación Directa (Saltar Pasos)
                                         </button>
                                     )}
                                 </div>

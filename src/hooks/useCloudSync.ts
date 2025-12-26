@@ -4,12 +4,9 @@ import { User, Order } from '../types';
 
 const sanitizeData = (table: string, data: any[]) => {
     if (table === 'rb_products') {
-        // Remove 'highlight' as it's missing in the actual Supabase schema
-        // and any other non-essential fields to avoid schema cache conflicts.
-        return data.map(({ highlight, customizableOptions, ...rest }) => ({
-            ...rest,
-            // We stringify customizableOptions if the DB expects text, 
-            // but for now let's just omit them to be 100% safe for the restoration.
+        // Keep customizableOptions! It's vital for the ordering flow.
+        return data.map(({ highlight, ...rest }) => ({
+            ...rest
         }));
     }
     return data;

@@ -65,17 +65,27 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ isOpen, onClose
                         <div className="space-y-3">
                             {product.customizableOptions.map(option => (
                                 <label key={option.id} className="flex items-center justify-between text-white cursor-pointer group">
-                                    <span className="text-lg flex-grow">
-                                        {option.name}
-                                        {!option.defaultIncluded && option.price_usd > 0 && (
-                                            <span className="text-gray-400 text-sm ml-2">(+${option.price_usd.toFixed(2)})</span>
-                                        )}
-                                    </span>
+                                    <div className="flex-grow">
+                                        <p className={`text-lg transition-colors ${!selectedOptions[option.id] && option.defaultIncluded ? 'text-red-400 line-through opacity-70' : 'text-white'}`}>
+                                            {option.name}
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            {option.defaultIncluded ? (
+                                                <span className="text-[10px] uppercase font-bold text-gray-400">Incluido</span>
+                                            ) : (
+                                                <span className="text-[10px] uppercase font-bold text-orange-400">Extra (+${option.price_usd.toFixed(2)})</span>
+                                            )}
+                                            {!selectedOptions[option.id] && option.defaultIncluded && (
+                                                <span className="text-[10px] uppercase font-bold text-red-500">Quitar</span>
+                                            )}
+                                        </div>
+                                    </div>
                                     <input
                                         type="checkbox"
                                         checked={selectedOptions[option.id]}
                                         onChange={(e) => handleOptionChange(option.id, e.target.checked)}
-                                        className="form-checkbox h-6 w-6 text-orange-500 bg-gray-800 border-gray-500 rounded focus:ring-orange-500 accent-orange-500 transform scale-125 group-hover:scale-130 transition-transform duration-200"
+                                        className={`form-checkbox h-6 w-6 rounded border-gray-500 focus:ring-orange-500 accent-orange-500 transform scale-125 transition-all
+                                            ${option.defaultIncluded ? 'accent-red-500' : 'accent-green-500'}`}
                                         aria-label={`${option.name} ${!option.defaultIncluded && option.price_usd > 0 ? `con costo adicional de ${option.price_usd.toFixed(2)} dólares` : ''}`}
                                     />
                                 </label>

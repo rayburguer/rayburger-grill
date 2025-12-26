@@ -33,52 +33,26 @@ export const useLoyalty = () => {
         deliveryInfo?: { method: 'delivery' | 'pickup', fee: number, phone: string }
     ): ProcessOrderResult | null => {
 
-        // Deep copy
-        let users = JSON.parse(JSON.stringify(allUsers)) as User[];
-        const buyerIndex = users.findIndex(u => u.email === buyerEmail);
-
-        // Guest Flow (Simplified)
-        if (buyerIndex === -1) {
-            return null;
-        }
-
-        let buyer = users[buyerIndex];
-
-        // ADMIN PROTECTION: Admins do NOT earn points
-        if (buyer.role === 'admin') {
-            const newOrder: Order = {
-                orderId: generateUuid(),
-                timestamp: Date.now(),
-                totalUsd: totalUsd + (deliveryInfo?.fee || 0),
-                items: cartItems.map(item => ({ name: item.name, quantity: item.quantity, price_usd: item.finalPrice_usd })),
-                pointsEarned: 0,
-                referrerPointsEarned: 0,
-                level2ReferrerPointsEarned: 0,
-                status: 'pending',
-                deliveryMethod: deliveryInfo?.method || 'pickup',
-                deliveryFee: deliveryInfo?.fee || 0,
-                customerName: buyer.name,
-                customerPhone: deliveryInfo?.phone || buyer.phone
-            };
-            buyer.orders.push(newOrder);
-            users[buyerIndex] = buyer;
-            return { updatedUsers: users, orderSummary: { pointsEarned: 0, referrerCashback: 0 } };
-        }
+        const buyer = allUsers.find(u => u.email === buyerEmail);
+        if (!buyer) return null;
 
         const tierAtPurchase = buyer.loyaltyTier || 'Bronze';
         // Check for retention multiplier
         const multiplier = buyer.nextPurchaseMultiplier || 1;
 
-        const { points } = calculateRewards(totalUsd, tierAtPurchase, multiplier);
+        let { points } = calculateRewards(totalUsd, tierAtPurchase, multiplier);
+
+        // REGLA DE HONESTIDAD: El Administrador NO gana puntos por sus propias compras
+        if (buyer.role === 'admin') {
+            points = 0;
+        }
 
         // NUEVO: Referidor solo gana CASHBACK (2% del monto)
-        // Ya NO gana puntos por traer amigos
         let referrerBonusCashback = 0;
-
         if (buyer.referredByCode) {
-            const referrerIndex = users.findIndex(u => u.referralCode === buyer.referredByCode);
-            if (referrerIndex > -1) {
-                referrerBonusCashback = totalUsd * REFERRAL_CASHBACK_RATE; // 2% del monto total
+            const referrer = allUsers.find(u => u.referralCode === buyer.referredByCode);
+            if (referrer) {
+                referrerBonusCashback = totalUsd * REFERRAL_CASHBACK_RATE;
             }
         }
 
@@ -87,9 +61,14 @@ export const useLoyalty = () => {
             orderId: generateUuid(),
             timestamp: Date.now(),
             totalUsd: totalUsd + (deliveryInfo?.fee || 0),
-            items: cartItems.map(item => ({ name: item.name, quantity: item.quantity, price_usd: item.finalPrice_usd })),
+            items: cartItems.map(item => ({
+                name: item.name,
+                quantity: item.quantity,
+                price_usd: item.finalPrice_usd,
+                selectedOptions: item.selectedOptions // Persistir personalizaciones
+            })),
             pointsEarned: points,
-            referrerPointsEarned: 0, // Ya no damos puntos a referidores
+            referrerPointsEarned: 0,
             level2ReferrerPointsEarned: 0,
             status: 'pending',
             deliveryMethod: deliveryInfo?.method || 'pickup',
@@ -98,11 +77,16 @@ export const useLoyalty = () => {
             customerPhone: deliveryInfo?.phone || buyer.phone
         };
 
-        buyer.orders.push(newOrder); // Add order to history but don't give points yet
-        users[buyerIndex] = buyer;
+        // IMMUTABLE UPDATE
+        const updatedUsers = allUsers.map(u => {
+            if (u.email === buyerEmail) {
+                return { ...u, orders: [...u.orders, newOrder] };
+            }
+            return u;
+        });
 
         return {
-            updatedUsers: users,
+            updatedUsers,
             orderSummary: {
                 pointsEarned: points,
                 referrerCashback: referrerBonusCashback,
@@ -117,78 +101,60 @@ export const useLoyalty = () => {
         buyerEmail: string,
         allUsers: User[]
     ): User[] => {
-        let users = JSON.parse(JSON.stringify(allUsers)) as User[];
-        const buyerIndex = users.findIndex(u => u.email === buyerEmail);
-        if (buyerIndex === -1) return users;
+        // Find specific buyer and order without cloning the whole world
+        const buyer = allUsers.find(u => u.email === buyerEmail);
+        if (!buyer) return allUsers;
 
-        let buyer = users[buyerIndex];
-        const orderIndex = buyer.orders.findIndex(o => o.orderId === orderId);
-
-        if (orderIndex === -1 || buyer.orders[orderIndex].status !== 'pending') {
-            return users; // Order not found or already processed
+        const order = buyer.orders.find(o => o.orderId === orderId);
+        if (!order || order.status === 'approved' || order.status === 'delivered') {
+            return allUsers;
         }
 
-        const order = buyer.orders[orderIndex];
+        return allUsers.map(u => {
+            // Case 1: Update the Buyer
+            if (u.email === buyerEmail) {
+                const updatedOrders = u.orders.map(o => o.orderId === orderId ? { ...o, status: 'approved' as const } : o);
+                const newPoints = u.points + order.pointsEarned;
+                return {
+                    ...u,
+                    points: newPoints,
+                    orders: updatedOrders,
+                    nextPurchaseMultiplier: 1, // Consume multiplier
+                    loyaltyTier: calculateLoyaltyTier(newPoints)
+                };
+            }
 
-        // NUEVO: Solo aplicar PUNTOS al comprador (ya no cashback)
-        buyer.points += order.pointsEarned;
-        buyer.orders[orderIndex].status = 'approved';
-
-        // CONSUME MULTIPLIER: Reset to 1 after successful purchase (Gift is single-use)
-        if (buyer.nextPurchaseMultiplier && buyer.nextPurchaseMultiplier > 1) {
-            buyer.nextPurchaseMultiplier = 1;
-        }
-
-        // REFERIDOR: Recibe CASHBACK (2% del monto)
-        // REGLA DE HONESTIDAD: Si el referidor es ADMIN, no recibe nada (el beneficio fue para el cliente)
-        if (buyer.referredByCode) {
-            const referrerIndex = users.findIndex(u => u.referralCode === buyer.referredByCode);
-            if (referrerIndex > -1) {
-                const referrer = users[referrerIndex];
-
-                // Si el referidor es Admin, salatamos el cashback (Honestidad)
-                if (referrer.role !== 'admin') {
-                    // Cashback 2% on ALL purchases
-                    const referrerCashback = order.totalUsd * REFERRAL_CASHBACK_RATE;
-                    users[referrerIndex].cashbackBalance_usd = (users[referrerIndex].cashbackBalance_usd || 0) + referrerCashback;
-                }
-
-                // Check if first purchase for stats
-                const previouslyApprovedOrders = buyer.orders.filter((o, idx) => idx !== orderIndex && o.status === 'approved');
+            // Case 2: Update the Referrer (if any)
+            if (buyer.referredByCode && u.referralCode === buyer.referredByCode && u.role !== 'admin') {
+                const referrerCashback = order.totalUsd * REFERRAL_CASHBACK_RATE;
+                const previouslyApprovedOrders = buyer.orders.filter(o => o.orderId !== orderId && o.status === 'approved');
                 const isFirstApprovedPurchase = previouslyApprovedOrders.length === 0;
 
-                if (isFirstApprovedPurchase) {
-                    // Update referrer stats only on first purchase
-                    if (!users[referrerIndex].referralStats) {
-                        users[referrerIndex].referralStats = {
-                            totalReferred: 0,
-                            referredThisMonth: 0,
-                            referredToday: 0
-                        };
-                    }
-                    users[referrerIndex].referralStats.totalReferred += 1;
-                }
+                const newStats = { ...(u.referralStats || { totalReferred: 0, referredThisMonth: 0, referredToday: 0 }) };
+                if (isFirstApprovedPurchase) newStats.totalReferred += 1;
+
+                return {
+                    ...u,
+                    cashbackBalance_usd: (u.cashbackBalance_usd || 0) + referrerCashback,
+                    referralStats: newStats
+                };
             }
-        }
 
-        // Update buyer tier
-        buyer.loyaltyTier = calculateLoyaltyTier(buyer.points);
-        users[buyerIndex] = buyer;
-
-        return users;
+            return u;
+        });
     }, []);
 
     // 3. Reject Order
     const rejectOrder = useCallback((orderId: string, buyerEmail: string, allUsers: User[]) => {
-        let users = JSON.parse(JSON.stringify(allUsers)) as User[];
-        const buyerIndex = users.findIndex(u => u.email === buyerEmail);
-        if (buyerIndex === -1) return users;
-
-        const orderIndex = users[buyerIndex].orders.findIndex(o => o.orderId === orderId);
-        if (orderIndex > -1) {
-            users[buyerIndex].orders[orderIndex].status = 'rejected';
-        }
-        return users;
+        return allUsers.map(u => {
+            if (u.email === buyerEmail) {
+                return {
+                    ...u,
+                    orders: u.orders.map(o => o.orderId === orderId ? { ...o, status: 'rejected' as const } : o)
+                };
+            }
+            return u;
+        });
     }, []);
 
     // 4. Roulette Logic

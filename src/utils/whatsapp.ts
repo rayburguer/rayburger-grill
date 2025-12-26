@@ -4,11 +4,13 @@ import { WHATSAPP_NUMBER } from '../config/constants';
 export const generateWhatsAppLink = (
     order: Order,
     user: User | undefined, // Undefined if guest
-    cartItems: CartItem[]
+    cartItems: CartItem[],
+    tasaBs: number // NEW PARAMETER
 ): string => {
     const isGuest = !user;
     const customerName = user?.name || "Invitado";
     const customerEmail = user?.email || "Sin email";
+    const totalBs = (order.totalUsd * tasaBs).toFixed(2);
 
     let message = `*¡Hola RayburgerGrill!* 🍔🔥\n`;
     message += `Quiero confirmar mi pedido a través de la Web.\n\n`;
@@ -21,11 +23,14 @@ export const generateWhatsAppLink = (
         const subtotal = item.finalPrice_usd * item.quantity;
         message += `- ${item.quantity}x ${item.name}`;
         if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
-            const options = Object.entries(item.selectedOptions)
-                .filter(([_, enabled]) => enabled)
-                .map(([id]) => id)
-                .join(', ');
-            if (options) message += ` _(${options})_`;
+            const productOptionsDescription = item.customizableOptions?.map(opt => {
+                const isSelected = item.selectedOptions[opt.id];
+                if (opt.defaultIncluded && !isSelected) return `SIN ${opt.name.toUpperCase()}`;
+                if (!opt.defaultIncluded && isSelected) return `EXTRA ${opt.name.toUpperCase()}`;
+                return null;
+            }).filter(Boolean).join(', ');
+
+            if (productOptionsDescription) message += ` _(${productOptionsDescription})_`;
         }
         message += ` → $${subtotal.toFixed(2)}\n`;
     });
@@ -35,11 +40,11 @@ export const generateWhatsAppLink = (
     }
 
     message += `\n💰 *TOTAL A PAGAR: $${order.totalUsd.toFixed(2)}*\n`;
+    message += `🇻🇪 *TOTAL EN BS: ${totalBs} Bs.*\n`;
+    message += `_(Tasa: ${tasaBs.toFixed(2)} Bs/$)_\n`;
 
     if (!isGuest) {
-        message += `🎁 *Puntos Ganados:* +${order.pointsEarned}\n`;
-        // We could check if cashback was used here if we implemented that logic fully in the order object
-        // For now, simple redundancy
+        message += `\n🎁 *Puntos Ganados:* +${order.pointsEarned}\n`;
     }
 
     message += `\n👤 *Datos del Cliente:*\n`;
@@ -50,11 +55,12 @@ export const generateWhatsAppLink = (
     message += `\n📍 *Método de Entrega:*\n`;
     message += order.deliveryMethod === 'delivery' ? `🛵 Envío a Domicilio` : `🏠 Retiro en Local`;
 
-    message += `\n\n🛰️ *Rastreo en Vivo:* Puedo ver el progreso de mi pedido en tiempo real en la Web (Cocina -> Camino -> Entregado).`;
+    message += `\n\n🛰️ *Rastreo en Vivo:* Puedo ver el progreso de mi pedido en tiempo real en la Web.`;
     message += `\n\n*(Por favor indícame los pasos para el pago)*`;
 
-    // Deep link para gestión rápida desde WhatsApp
-    const deepLink = `https://pruebaloca.vercel.app?admin=orders&orderId=${order.orderId}`;
+    // Deep link: FIXED to use current origin
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://rayburgergrill.com.ve';
+    const deepLink = `${origin}?admin=orders&orderId=${order.orderId}`;
     message += `\n\n━━━━━━━━━━━━━━━━━━\n📱 *GESTIONAR PEDIDO*\n${deepLink}\n━━━━━━━━━━━━━━━━━━`;
 
     const encodedMessage = encodeURIComponent(message);
