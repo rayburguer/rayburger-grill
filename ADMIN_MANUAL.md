@@ -23,21 +23,27 @@ Ahora tienes **3 enlaces especializados** para tu equipo:
 
 ---
 
-## 🚀 1. Modo POS Rápido (Mejorado)
+## 🚀 1. Modo POS Rápido (Caja Registradora)
+### 🆕 Nuevas Funciones de Venta:
+- **Personalización al Instante:** Al tocar un producto, se abre un modal para elegir qué ingredientes quitar (ej: "Sin Tomate") o agregar (ej: "Extra Queso").
+- **Edición Rápida (Botón X):** En la cuadrícula de productos, verás una **X roja** en la esquina superior izquierda de los productos seleccionados. Úsala para eliminar rápidamente todos los ítems de ese tipo sin entrar al resumen.
+- **Visualización Pro:** Los detalles de personalización aparecen en el carrito con destellos (✨) para fácil lectura.
+
 ### En **Tablets / Computadoras:**
-- **Vista Dividida:** Menú de productos a la izquierda, carrito fijo a la derecha.
-- Puedes **agregar, quitar o modificar** cantidades sin salir de la pantalla.
-- Botones: ➖ (reducir), 🗑️ (borrar), ➕ (aumentar).
+- **Vista Dividida:** Menú a la izquierda, detalle del pedido a la derecha.
+- Botones: ➖ (reducir), 🗑️ (borrar de la lista), ➕ (aumentar).
 
 ### En **Celulares:**
-1. Toca los productos para agregarlos.
-2. Dale a **"Ver / Cobrar"** para revisar el pedido.
-3. Usa el botón **"➕ Seguir Pidiendo"** para volver al menú si falta algo.
-4. Cuando esté listo, confirma el pago.
+1. Selecciona los productos y sus extras.
+2. Toca **"COBRAR"** para ver el resumen final.
+3. El total en **Bolívares (Bs)** es ahora muy prominente y se actualiza según la tasa del día.
 
-### 🎁 Loyalty Loop (Opcional):
-- **Con Puntos:** Pide el WhatsApp del cliente. Al confirmar, se suman puntos y se abre el chat.
-- **Venta Rápida:** Déjalo vacío para guardar como "Anónima".
+### 📋 Flujo de Preparación (Importante):
+A diferencia de versiones anteriores, las ventas por POS llegan como **"Pendiente"** a la lista de pedidos. Esto es para que el equipo de cocina lo vea en la pantalla de preparación y sepa qué cocinar. Una vez entregado, debes marcarlo como tal en la pestaña "Pedidos".
+
+### 🎁 Registro de Clientes:
+- **Con Puntos:** Ingresa el WhatsApp del cliente. Se le enviará su recibo digital y se le sumarán los puntos automáticamente.
+- **Anónima:** Deja el campo vacío si el cliente no desea registrarse.
 
 ---
 

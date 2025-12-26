@@ -397,7 +397,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     timestamp: Date.now(),
                                     // HONESTY RULE: Admins get 0 points in POS
                                     pointsEarned: isAdminBuyer ? 0 : Math.floor(orderData.totalUsd),
-                                    status: 'approved'
+                                    status: orderData.status || 'approved'
                                 };
 
                                 let whatsappMessage = '';

@@ -56,14 +56,21 @@ Cuando un cliente hace un pedido, llega como **"Pendiente"**.
 - **Filtros:** Pendientes / Aprobados / Rechazados / Todos
 
 ### Proceso de Aprobación
-1.  Verifica en tu banco que el Pago Móvil o Zelle sea real.
-2.  Busca el pedido en la pestaña "Pedidos".
-3.  **Aprobar (✓):** Si el dinero está en cuenta, dale "Aprobar".
-    - *Acción Automática:* Al aprobar, el sistema **le entrega los Puntos y el Saldo (Cashback)** al cliente automáticamente.
-    - Los puntos pasan de "Pendientes" a "Disponibles"
-4.  **Rechazar (✗):** Si el pago no llegó, usa el botón rojo. (No se dan puntos ni cashback)
+1.  **Pedidos Web:** Verifica el pago y dale "Aprobar".
+2.  **Pedidos de Caja (POS):** Llegan como **"Pendiente"** para que cocina los vea. Una vez entregado el producto al cliente en el mostrador, márcalo como **"Entregado"** en este panel.
+3.  **Aprobar (✓):** Al aprobar (o marcar como entregado en POS), el sistema **le entrega los Puntos y el Saldo (Cashback)** al cliente automáticamente.
+    - Los puntos pasan de "Pendientes" a "Disponibles".
+4.  **Rechazar (✗):** Si el pago no llegó o hubo un error, usa el botón rojo.
 
-**Importante:** Los pedidos de invitados (sin cuenta) también aparecen aquí para que los gestiones.
+---
+
+## 5. Punto de Venta (Quick POS)
+Optimizado para ventas rápidas en el local:
+- **Personalización:** Al tocar un producto, puedes quitar o poner ingredientes extras. Ideal para pedidos especiales ("Sin cebolla", "Doble carne").
+- **Eliminación Directa:** Si te equivocas, usa la **X roja** en el cuadro del producto para quitarlo del pedido al instante.
+- **WhatsApp Instantáneo:** Al cobrar, si pones el número del cliente, se abre WhatsApp con su recibo y sus puntos de regalo.
+
+---
 
 ## 5. La Ruleta y Premios
 - La Ruleta funciona sola. No tienes que hacer nada.
