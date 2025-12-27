@@ -249,6 +249,53 @@ export const useCloudSync = () => {
         }
     }, []);
 
+    const wipeCloudData = useCallback(async (cutoffTimestamp?: number) => {
+        if (!supabase) return { error: 'Supabase client not initialized' };
+
+        setIsSyncing(true);
+        console.log(`🔥 CLOUD WIPE INITIATED (Cutoff: ${cutoffTimestamp ? new Date(cutoffTimestamp).toLocaleString() : 'ALL'})`);
+
+        try {
+            // 1. DELETE ORDERS
+            let query = supabase.from('rb_orders').delete();
+
+            if (cutoffTimestamp) {
+                // Safe mode: Delete only OLD orders
+                query = query.lt('timestamp', cutoffTimestamp);
+            } else {
+                // Nuclear mode: Delete ALL
+                query = query.neq('id', '00000000-0000-0000-0000-000000000000');
+            }
+
+            const { error: ordersError } = await query;
+            if (ordersError) throw ordersError;
+
+            // 2. USERS HANDLING
+            // If partial wipe (cutoff provided), WE PROTECT USERS.
+            // "no puede pasar nada con la info de clientes de ayer"
+            // So we only wipe users if it's a full nuclear reset (no cutoff).
+            if (!cutoffTimestamp) {
+                const { error: usersError } = await supabase.from('rb_users').delete().neq('id', 'nobody');
+                if (usersError) throw usersError;
+            } else {
+                console.log("🛡️ Skipping User deletion to protect client data.");
+            }
+
+            const now = Date.now();
+            setLastSync(now);
+            localStorage.setItem('rayburger_last_cloud_sync', now.toString());
+
+            console.log("✅ CLOUD DATA CLEANED SUCCESSFULLY");
+            return { error: null };
+
+        } catch (err: any) {
+            console.error("💥 CLOUD WIPE ERROR:", err);
+            return { error: err.message };
+        } finally {
+            setIsSyncing(false);
+        }
+    }, []);
+
     return {
         isSyncing,
         lastSync,
@@ -256,6 +303,7 @@ export const useCloudSync = () => {
         replaceInCloud,
         fetchFromCloud,
         migrateAllToCloud,
-        pullFromCloud
+        pullFromCloud,
+        wipeCloudData // EXPORT NEW FUNCTION
     };
 };

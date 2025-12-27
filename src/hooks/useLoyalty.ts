@@ -106,7 +106,8 @@ export const useLoyalty = () => {
         if (!buyer) return allUsers;
 
         const order = buyer.orders.find(o => o.orderId === orderId);
-        if (!order || order.status === 'approved' || order.status === 'delivered') {
+        // FIX: Allow 'delivered' orders to be approved. Only block if already approved.
+        if (!order || order.status === 'approved') {
             return allUsers;
         }
 

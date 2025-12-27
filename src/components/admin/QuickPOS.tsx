@@ -21,6 +21,9 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
     const [posCart, setPosCart] = useState<POSCartItem[]>([]);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'pago_movil' | 'zelle'>('pago_movil');
+    const [deliveryMethod, setDeliveryMethod] = useState<'pickup' | 'delivery'>('pickup');
+    const [deliveryFee, setDeliveryFee] = useState<number>(0);
+    const [customerPhone, setCustomerPhone] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('Todos');
 
@@ -96,35 +99,42 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
         return result;
     }, [availableProducts, selectedCategory, searchTerm]);
 
-    const [customerPhone, setCustomerPhone] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
 
     const handleCheckout = async () => {
-        if (posCart.length === 0) return;
+        if (posCart.length === 0 || isProcessing) return;
 
-        const orderData = {
-            orderId: `POS-${Date.now()}`,
-            timestamp: Date.now(),
-            items: posCart.map(item => ({
-                name: item.product.name,
-                quantity: item.quantity,
-                price_usd: item.finalPrice,
-                selectedOptions: item.selectedOptions
-            })),
-            totalUsd: cartTotalUsd,
-            paymentMethod: paymentMethod,
-            deliveryMethod: 'pickup',
-            deliveryFee: 0,
-            customerName: customerPhone ? 'Cliente Registrado' : 'Cliente en Local',
-            customerPhone: customerPhone || undefined,
-            status: 'pending', // IMPORTANT: Changed to 'pending' as requested for preparation logic
-            processedBy: cashierName,
-            pointsEarned: Math.floor(cartTotalUsd)
-        };
+        setIsProcessing(true);
+        try {
+            const orderData = {
+                orderId: `POS-${Date.now()}`,
+                timestamp: Date.now(),
+                items: posCart.map(item => ({
+                    name: item.product.name,
+                    quantity: item.quantity,
+                    price_usd: item.finalPrice,
+                    selectedOptions: item.selectedOptions
+                })),
+                totalUsd: cartTotalUsd + (deliveryMethod === 'delivery' ? deliveryFee : 0),
+                paymentMethod: paymentMethod,
+                deliveryMethod: deliveryMethod,
+                deliveryFee: deliveryMethod === 'delivery' ? deliveryFee : 0,
+                customerName: customerPhone ? 'Cliente Registrado' : 'Cliente en Local',
+                customerPhone: customerPhone ? (customerPhone.startsWith('0') ? `+58${customerPhone.substring(1)}` : customerPhone) : undefined,
+                status: 'pending',
+                processedBy: cashierName,
+                pointsEarned: Math.floor(cartTotalUsd)
+            };
 
-        await onProcessOrder(orderData);
-        setPosCart([]);
-        setCustomerPhone('');
-        setIsCheckingOut(false);
+            await onProcessOrder(orderData);
+            setPosCart([]);
+            setCustomerPhone('');
+            setIsCheckingOut(false);
+        } catch (error) {
+            console.error("Error processing order:", error);
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     const getProductBadgeCount = (productId: number) => {
@@ -133,6 +143,7 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
 
     return (
         <div className="flex flex-col h-full bg-gray-900">
+            {/* ... (Search Bar and Categories remain unchanged) ... */}
             {/* Search Bar */}
             <div className="p-2 bg-gray-800 border-b border-gray-700 flex gap-2">
                 <div className="relative flex-1">
@@ -335,8 +346,9 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
                                 <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Cajero: {cashierName}</p>
                             </div>
                             <button
-                                onClick={() => setIsCheckingOut(false)}
-                                className="p-2 bg-gray-800 hover:bg-red-600 text-white rounded-full transition-colors"
+                                onClick={() => !isProcessing && setIsCheckingOut(false)}
+                                disabled={isProcessing}
+                                className="p-2 bg-gray-800 hover:bg-red-600 text-white rounded-full transition-colors disabled:opacity-50"
                             >
                                 <XIcon size={24} />
                             </button>
@@ -357,11 +369,12 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <button onClick={() => updateQuantity(index, -1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white"><Minus size={18} /></button>
-                                            <button onClick={() => updateQuantity(index, 1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white"><Plus size={18} /></button>
+                                            <button onClick={() => !isProcessing && updateQuantity(index, -1)} disabled={isProcessing} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white disabled:opacity-50"><Minus size={18} /></button>
+                                            <button onClick={() => !isProcessing && updateQuantity(index, 1)} disabled={isProcessing} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white disabled:opacity-50"><Plus size={18} /></button>
                                             <button
-                                                onClick={() => removeFromPosCart(index)}
-                                                className="p-2 bg-red-900/20 text-red-500 hover:bg-red-600 hover:text-white rounded-lg ml-2 transition-colors"
+                                                onClick={() => !isProcessing && removeFromPosCart(index)}
+                                                disabled={isProcessing}
+                                                className="p-2 bg-red-900/20 text-red-500 hover:bg-red-600 hover:text-white rounded-lg ml-2 transition-colors disabled:opacity-50"
                                             >
                                                 <Trash2 size={18} />
                                             </button>
@@ -383,22 +396,31 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
                                         <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
                                         <input
                                             type="tel"
-                                            placeholder="WhatsApp (Ej: 0412...)"
+                                            placeholder="Ej: 0412... (Automático +58)"
                                             value={customerPhone}
-                                            onChange={(e) => setCustomerPhone(e.target.value)}
+                                            onChange={(e) => {
+                                                // Allow only numbers and plus sign
+                                                const val = e.target.value.replace(/[^0-9+]/g, '');
+                                                setCustomerPhone(val);
+                                            }}
                                             className="w-full bg-gray-800 border-2 border-transparent focus:border-orange-500 rounded-xl pl-12 pr-4 py-3 text-white text-xl font-black font-mono outline-none transition-all placeholder:text-gray-600"
                                         />
                                     </div>
                                 </div>
-                                <p className="text-[10px] text-gray-500 mt-2 font-bold italic">Se enviará el recibo automáticamente al finalizar.</p>
+                                <p className="text-[10px] text-gray-500 mt-2 font-bold italic">
+                                    {customerPhone && customerPhone.startsWith('0')
+                                        ? `Se guardará como: +58${customerPhone.substring(1)}`
+                                        : 'Se enviará el recibo automáticamente al finalizar.'}
+                                </p>
                             </div>
 
                             <div className="grid grid-cols-3 gap-3">
                                 {(['cash', 'pago_movil', 'zelle'] as const).map(method => (
                                     <button
                                         key={method}
-                                        onClick={() => setPaymentMethod(method)}
-                                        className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === method ? 'bg-orange-600 border-orange-400 text-white shadow-lg scale-105' : 'bg-gray-900 border-gray-700 text-gray-500 hover:text-white hover:border-gray-500'}`}
+                                        onClick={() => !isProcessing && setPaymentMethod(method)}
+                                        disabled={isProcessing}
+                                        className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === method ? 'bg-orange-600 border-orange-400 text-white shadow-lg scale-105' : 'bg-gray-900 border-gray-700 text-gray-500 hover:text-white hover:border-gray-500'} ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                         {method === 'cash' && <Banknote size={28} />}
                                         {method === 'pago_movil' && <Smartphone size={28} />}
@@ -408,17 +430,67 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
                                 ))}
                             </div>
 
+                            {/* DELIVERY TOGGLE */}
+                            <div className="bg-gray-900 p-4 rounded-2xl border border-gray-700 shadow-inner">
+                                <label className="block text-xs uppercase font-black text-gray-500 tracking-widest mb-3">
+                                    📍 Método de Entrega
+                                </label>
+                                <div className="flex gap-3 mb-3">
+                                    <button
+                                        onClick={() => setDeliveryMethod('pickup')}
+                                        className={`flex-1 py-3 rounded-xl border-2 font-bold flex items-center justify-center gap-2 transition-all ${deliveryMethod === 'pickup' ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-gray-800 border-gray-700 text-gray-400'}`}
+                                    >
+                                        🏠 Retiro
+                                    </button>
+                                    <button
+                                        onClick={() => setDeliveryMethod('delivery')}
+                                        className={`flex-1 py-3 rounded-xl border-2 font-bold flex items-center justify-center gap-2 transition-all ${deliveryMethod === 'delivery' ? 'bg-purple-600 border-purple-400 text-white shadow-lg' : 'bg-gray-800 border-gray-700 text-gray-400'}`}
+                                    >
+                                        🛵 Delivery
+                                    </button>
+                                </div>
+
+                                {deliveryMethod === 'delivery' && (
+                                    <div className="animate-in slide-in-from-top duration-200">
+                                        <label className="text-[10px] uppercase font-bold text-gray-500 mb-1 block">Costo Delivery ($)</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.5"
+                                            value={deliveryFee}
+                                            onChange={(e) => setDeliveryFee(parseFloat(e.target.value) || 0)}
+                                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white outline-none focus:border-purple-500 font-mono"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="flex flex-col gap-3">
                                 <div className="flex justify-between items-center px-2">
                                     <span className="text-gray-400 font-bold italic tracking-tighter text-lg underline decoration-orange-500/50">Total Tasa: {tasaBs}</span>
-                                    <span className="text-white font-black text-2xl font-mono">${cartTotalUsd.toFixed(2)}</span>
+                                    <div className="text-right">
+                                        <span className="text-white font-black text-2xl font-mono">${(cartTotalUsd + (deliveryMethod === 'delivery' ? deliveryFee : 0)).toFixed(2)}</span>
+                                        {deliveryMethod === 'delivery' && deliveryFee > 0 && (
+                                            <p className="text-xs text-purple-400 font-bold">+${deliveryFee} Delivery</p>
+                                        )}
+                                    </div>
                                 </div>
                                 <button
                                     onClick={handleCheckout}
-                                    className="w-full py-5 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-black text-2xl rounded-2xl shadow-2xl shadow-green-900/30 flex items-center justify-center gap-3 active:scale-95 transition-all"
+                                    disabled={isProcessing}
+                                    className={`w-full py-5 font-black text-2xl rounded-2xl shadow-2xl flex items-center justify-center gap-3 transition-all ${isProcessing
+                                        ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                                        : 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white hover:scale-[1.02] shadow-green-900/30'
+                                        }`}
                                 >
-                                    <span>CONCLUIR VENTA</span>
-                                    <span className="bg-white/20 px-3 py-1 rounded-lg text-sm">Bs. {cartTotalBs.toLocaleString()}</span>
+                                    {isProcessing ? (
+                                        <span>⏳ PROCESANDO...</span>
+                                    ) : (
+                                        <>
+                                            <span>CONCLUIR VENTA</span>
+                                            <span className="bg-white/20 px-3 py-1 rounded-lg text-sm">Bs. {((cartTotalUsd + (deliveryMethod === 'delivery' ? deliveryFee : 0)) * tasaBs).toLocaleString()}</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>

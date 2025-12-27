@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Order, Product } from '../../types';
 import { useProducts } from '../../hooks/useProducts';
 import { useAdmin } from '../../hooks/useAdmin';
@@ -17,6 +17,7 @@ import { CashRegisterReport } from './CashRegisterReport';
 import { OrderManagement } from './OrderManagement';
 import { persistence } from '../../utils/persistence';
 import { useShift } from '../../hooks/useShift';
+import { supabase } from '../../lib/supabase'; // Import Supabase client directly
 
 interface AdminDashboardProps {
     isOpen: boolean;
@@ -39,7 +40,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const { suggestions, deleteSuggestion } = useSuggestions();
     const { isAdmin, loginAdmin, logoutAdmin } = useAdmin();
     const { getStats } = useSurveys();
-    const { isSyncing } = useCloudSync();
+    const { isSyncing, pullFromCloud, wipeCloudData } = useCloudSync();
     const { localOrders, addLocalOrder, clearShift, exportShiftData, isSatelliteMode, setIsSatelliteMode } = useShift();
     const [password, setPassword] = useState('');
     const [cashierName, setCashierName] = useState(() => localStorage.getItem('rayburger_cashier_name') || ''); // NEW: Persist cashier name
@@ -99,6 +100,148 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const surveyStats = getStats();
     const [isEditing, setIsEditing] = useState(false);
     const [currentProduct, setCurrentProduct] = useState<Partial<Product>>({});
+    const [isUploadingCloud, setIsUploadingCloud] = useState(false); // NEW State
+
+    // AUTO-PULL on Mount (Master Mode Only)
+    useEffect(() => {
+        if (!isSatelliteMode) {
+            console.log("🔄 Auto-pulling cloud data for Master Terminal...");
+            pullFromCloud().then(res => {
+                if (!res.error) console.log("✅ Auto-pull success");
+            });
+        }
+    }, []); // Run once on mount
+
+    // NEW: Handle One-Click Sync for Satellite
+    const handleSyncToCloud = async () => {
+        if (localOrders.length === 0 && registeredUsers.length === 0) return onShowToast('⚠️ No hay datos locales para subir');
+        if (!confirm('¿Subir ventas y clientes locales a la nube principal?')) return;
+
+        setIsUploadingCloud(true);
+        let syncedCount = 0;
+        let syncedUsersCount = 0;
+
+        try {
+            // 1. Get ALL current users to prevent overwrites (Fresh Fetch)
+            const { data: remoteUsers, error: usersError } = await supabase.from('rb_users').select('*');
+            if (usersError) throw new Error('Error conectando con base de datos de usuarios');
+
+            // Map for quick lookup
+            const userMap = new Map((remoteUsers || []).map(u => [u.phone, u]));
+
+            // 2. Prepare patches
+            const newGuestOrders: any[] = [];
+            const userUpdates = new Map<string, User>(); // phone -> UpdatedUser
+
+            // 2a. Sync LOCALLY REGISTERED USERS (Even if they have no orders)
+            // This fixes "ni siquiera aparecen los cliente que registre"
+            for (const localUser of registeredUsers) {
+                const remoteUser = userMap.get(localUser.phone);
+
+                // Logic: If local user has MORE points or MORE orders than remote, assume local is newer
+                // OR if remote doesn't exist.
+                if (!remoteUser) {
+                    userUpdates.set(localUser.phone, localUser);
+                    syncedUsersCount++;
+                } else {
+                    // Start with remote state
+                    let mergedUser = { ...remoteUser };
+                    let changed = false;
+
+                    // Merge Orders (avoid duplicates)
+                    const existingOrderIds = new Set(mergedUser.orders?.map((o: any) => o.orderId) || []);
+                    const localUserOrders = localUser.orders || [];
+
+                    for (const o of localUserOrders) {
+                        if (!existingOrderIds.has(o.orderId)) {
+                            mergedUser.orders = [...(mergedUser.orders || []), o];
+                            mergedUser.points = (mergedUser.points || 0) + (o.pointsEarned || 0);
+                            existingOrderIds.add(o.orderId);
+                            changed = true;
+                        }
+                    }
+
+                    if (changed) {
+                        userUpdates.set(localUser.phone, mergedUser);
+                        syncedUsersCount++;
+                    }
+                }
+            }
+
+            // 2b. Sync LOCAL ORDERS (Anonymous & Registered)
+            for (const order of localOrders) {
+                if (order.customerPhone) {
+                    // It's a REGISTERED USER order
+                    // We likely already handled this in 2a, but let's double check 
+                    // if the order is in `localOrders` but somehow not in `registeredUsers` (rare edge case)
+                    let user = userUpdates.get(order.customerPhone) || userMap.get(order.customerPhone);
+
+                    if (!user) {
+                        // Creating NEW user from Satellite Order
+                        user = {
+                            email: `${order.customerPhone}@pos.ray`,
+                            phone: order.customerPhone,
+                            name: order.customerName || 'Cliente Satélite',
+                            role: 'customer',
+                            loyaltyTier: 'Bronze',
+                            points: 0, // NO Welcome Bonus for sync/recovery to avoid accidents
+                            orders: [],
+                            passwordHash: '1234',
+                            referralCode: `POS-SAT-${Date.now()}-${Math.random().toString(36).substring(7)}`
+                        } as User;
+                    }
+
+                    // Check if order already exists in user history
+                    const orderExists = user.orders?.some((o: any) => o.orderId === order.orderId);
+                    if (!orderExists) {
+                        const points = order.pointsEarned || 0;
+                        user = {
+                            ...user,
+                            points: (user.points || 0) + points,
+                            orders: [...(user.orders || []), order]
+                        };
+                        userUpdates.set(order.customerPhone, user);
+                        syncedCount++;
+                    }
+
+                } else {
+                    // Anonymous Order -> Add to rb_orders
+                    newGuestOrders.push({
+                        ...order,
+                        id: order.orderId // Map back for Supabase
+                    });
+                    syncedCount++;
+                }
+            }
+
+            // 3. EXECUTE BATCH UPDATES
+            // 3a. Update Users
+            if (userUpdates.size > 0) {
+                const usersToPush = Array.from(userUpdates.values());
+                const { error: pushError } = await supabase.from('rb_users').upsert(usersToPush, { onConflict: 'email' });
+                if (pushError) throw pushError;
+            }
+
+            // 3b. Update Guest Orders
+            if (newGuestOrders.length > 0) {
+                const { error: guestError } = await supabase.from('rb_orders').upsert(newGuestOrders, { onConflict: 'id' });
+                if (guestError) throw guestError;
+            }
+
+            onShowToast(`✅ ÉXITO: ${syncedCount} ventas subidas a la Nube Master.`);
+
+            // Optional: Clear local shift automatically?
+            if (confirm(`Se subieron ${syncedCount} ventas. ¿Limpiar la lista local para empezar turno nuevo?`)) {
+                clearShift();
+            }
+
+        } catch (err: any) {
+            console.error(err);
+            onShowToast(`❌ Error subiendo: ${err.message}`);
+        } finally {
+            setIsUploadingCloud(false);
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -290,8 +433,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 {/* POS INFO BAR (Mode Selector & Local Stats) */}
-                <div className="bg-gray-800 border-b border-gray-700 px-6 py-2 flex justify-between items-center text-xs">
-                    <div className="flex items-center gap-4">
+                <div className="bg-gray-800 border-b border-gray-700 px-6 py-2 flex flex-col sm:flex-row justify-between items-center text-xs">
+                    <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
                         <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
                             <button
                                 onClick={() => setIsSatelliteMode(false)}
@@ -312,8 +455,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
 
                     {isSatelliteMode && (
-                        <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 sm:mt-0">
                             <span className="text-gray-400 hidden sm:inline">Ventas Turno: <b className="text-white">{localOrders.length}</b></span>
+                            <button
+                                onClick={handleSyncToCloud}
+                                disabled={isUploadingCloud}
+                                className="px-2 sm:px-3 py-1.5 sm:py-1 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition-all flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs shadow-lg animate-pulse"
+                            >
+                                <Cloud size={12} className="shrink-0" />
+                                <span className="truncate">{isUploadingCloud ? 'Subiendo...' : '☁️ SUBIR VENTAS AHORA'}</span>
+                            </button>
                             <button
                                 onClick={() => {
                                     const base64 = exportShiftData();
@@ -1064,17 +1215,25 @@ const CloudSyncSection: React.FC<{ onShowToast: (msg: string) => void }> = ({ on
                     </p>
                     <button
                         onClick={async () => {
+                            // FIX: Safe Purge - Keep data from Dec 26th onwards
                             const purgeDate = new Date('2025-12-26T00:00:00').getTime();
                             const ordersToPurge = allOrders.filter(o => o.timestamp < purgeDate).length;
 
                             if (ordersToPurge === 0) {
-                                onShowToast('✨ No hay datos de prueba antiguos para limpiar.');
+                                onShowToast('✨ El historial antiguo ya está limpio.');
                                 return;
                             }
 
-                            const confirmed = confirm(`⚠️ Se eliminarán ${ordersToPurge} pedidos de prueba (Anteriores al 26/12).\n¿Estás seguro? Esta acción no se puede deshacer.`);
+                            const confirmed = confirm(`⚠️ MANTENIMIENTO: Se eliminarán ${ordersToPurge} pedidos ANTERIORES al 26 de Diciembre.\n\nTus ventas de AYER (26) y HOY (27) se mantendrán intactas.\n¿Proceder con la limpieza?`);
 
                             if (confirmed) {
+                                // 0. WIPE CLOUD (Partial)
+                                onShowToast('⏳ Limpiando Nube (Datos Antiguos)...');
+                                const { error: cloudError } = await wipeCloudData(purgeDate);
+                                if (cloudError) {
+                                    alert('Error limpiando nube: ' + cloudError);
+                                }
+
                                 // 1. Purge Guest Orders
                                 const cleanGuestOrders = guestOrders.filter(o => o.timestamp >= purgeDate);
                                 updateGuestOrders(cleanGuestOrders);
@@ -1086,7 +1245,7 @@ const CloudSyncSection: React.FC<{ onShowToast: (msg: string) => void }> = ({ on
                                 }));
                                 updateUsers(cleanUsers);
 
-                                onShowToast(`🧹 Base de datos limpia: ${ordersToPurge} registros eliminados.`);
+                                onShowToast(`✅ Mantenimiento Completado: Datos antiguos eliminados.`);
 
                                 // Reset counters for refresh
                                 setTimeout(() => window.location.reload(), 1500);
@@ -1094,7 +1253,7 @@ const CloudSyncSection: React.FC<{ onShowToast: (msg: string) => void }> = ({ on
                         }}
                         className="w-full sm:w-auto px-6 py-3 bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/30 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm"
                     >
-                        <Trash2 size={16} /> Limpiar Datos de Prueba (Pre-26 Dic)
+                        <Trash2 size={16} /> Limpiar Datos PREVIOS al 26 Dic
                     </button>
                 </div>
             </div>

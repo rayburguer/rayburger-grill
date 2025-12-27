@@ -428,6 +428,18 @@ const Storefront: React.FC = () => {
     }
     */
 
+    // --- SECURE ADMIN ACCESS HANDLER ---
+    const handleAdminAccess = useCallback(() => {
+        if (currentUser && currentUser.role === 'admin') {
+            navigate('/admin');
+        } else if (currentUser) {
+            showToast("⛔ Acceso denegado. Solo personal autorizado.");
+        } else {
+            showToast("🔐 Inicia sesión como Administrador para entrar.");
+            openLogin();
+        }
+    }, [currentUser, navigate, showToast, openLogin]);
+
     return (
         <div className="min-h-screen bg-gray-900 text-white flex flex-col">
             <a href={`#${SKIP_LINK_ID}`} className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:bg-orange-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-md">Saltar al contenido principal</a>
@@ -624,7 +636,7 @@ const Storefront: React.FC = () => {
                 <div className="mt-10 w-full"><FAQSection /></div>
             </main>
 
-            <MemoizedFooter />
+            <MemoizedFooter onAdminClick={handleAdminAccess} />
 
             <CartModal
                 isOpen={isCartOpen} onClose={closeCart} cart={cart} totalUsd={totalUsd}

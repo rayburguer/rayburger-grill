@@ -2,7 +2,11 @@ import React from 'react';
 import { Instagram, Facebook, MessageSquare } from 'lucide-react';
 import { INSTAGRAM_URL, FACEBOOK_URL, WHATSAPP_URL } from '../../config/constants';
 
-const Footer: React.FC = () => {
+interface FooterProps {
+    onAdminClick: () => void;
+}
+
+const Footer: React.FC<FooterProps> = ({ onAdminClick }) => {
     const currentYear = new Date().getFullYear();
 
     return (
@@ -12,9 +16,12 @@ const Footer: React.FC = () => {
                     &copy; {currentYear} RayburgerGrill. Todos los derechos reservados.
                 </p>
                 <div className="flex space-x-4 items-center">
-                    <a href="/admin" className="text-[10px] text-gray-600 hover:text-gray-400 no-underline opacity-50">
-                        Acceso Personal
-                    </a>
+                    <button 
+                        onClick={onAdminClick} 
+                        className="text-[10px] text-gray-600 hover:text-orange-500 transition-colors uppercase font-bold tracking-widest opacity-70 hover:opacity-100"
+                    >
+                        🔒 Acceso Administrativo
+                    </button>
                     <a
                         href={INSTAGRAM_URL}
                         target="_blank"

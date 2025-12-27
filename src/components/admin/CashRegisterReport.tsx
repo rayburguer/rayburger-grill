@@ -12,31 +12,37 @@ export const CashRegisterReport: React.FC<CashRegisterReportProps> = ({ orders, 
     const [dateRange, setDateRange] = useState<'today' | 'yesterday' | 'custom'>('today');
 
     const getFilteredOrders = () => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date(todayStart);
+        todayEnd.setDate(todayEnd.getDate() + 1);
 
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStart = new Date(todayStart);
+        yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+        const yesterdayEnd = new Date(todayStart);
 
-        const selectedDateObj = new Date(selectedDate);
-        selectedDateObj.setHours(0, 0, 0, 0);
+        // Custom Date Range (Local Time)
+        const [y, m, d] = selectedDate.split('-').map(Number);
+        const customStart = new Date(y, m - 1, d, 0, 0, 0, 0);
+        const customEnd = new Date(customStart);
+        customEnd.setDate(customEnd.getDate() + 1);
 
         return orders.filter(order => {
-            const orderDate = new Date(order.timestamp);
-            orderDate.setHours(0, 0, 0, 0);
+            if (!order.timestamp) return false;
+            const t = typeof order.timestamp === 'string' ? new Date(order.timestamp).getTime() : order.timestamp;
 
             if (dateRange === 'today') {
-                return orderDate.getTime() === today.getTime();
+                return t >= todayStart.getTime() && t < todayEnd.getTime();
             } else if (dateRange === 'yesterday') {
-                return orderDate.getTime() === yesterday.getTime();
+                return t >= yesterdayStart.getTime() && t < yesterdayEnd.getTime();
             } else {
-                return orderDate.getTime() === selectedDateObj.getTime();
+                return t >= customStart.getTime() && t < customEnd.getTime();
             }
         });
     };
 
     const filteredOrders = getFilteredOrders();
-    const approvedOrders = filteredOrders.filter(o => o.status === 'approved');
+    const approvedOrders = filteredOrders.filter(o => o.status === 'approved' || o.status === 'delivered');
 
     const totalUSD = approvedOrders.reduce((sum, o) => sum + (o.totalUsd || 0), 0);
     const totalBs = totalUSD * tasaBs;
@@ -67,7 +73,10 @@ export const CashRegisterReport: React.FC<CashRegisterReportProps> = ({ orders, 
                 {/* Date Selector */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <button
-                        onClick={() => setDateRange('today')}
+                        onClick={() => {
+                            setDateRange('today');
+                            setSelectedDate(new Date().toISOString().split('T')[0]);
+                        }}
                         className={`px-4 py-3 rounded-xl font-bold transition-all ${dateRange === 'today'
                             ? 'bg-orange-600 text-white'
                             : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -76,7 +85,12 @@ export const CashRegisterReport: React.FC<CashRegisterReportProps> = ({ orders, 
                         📅 Hoy
                     </button>
                     <button
-                        onClick={() => setDateRange('yesterday')}
+                        onClick={() => {
+                            setDateRange('yesterday');
+                            const y = new Date();
+                            y.setDate(y.getDate() - 1);
+                            setSelectedDate(y.toISOString().split('T')[0]);
+                        }}
                         className={`px-4 py-3 rounded-xl font-bold transition-all ${dateRange === 'yesterday'
                             ? 'bg-orange-600 text-white'
                             : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
