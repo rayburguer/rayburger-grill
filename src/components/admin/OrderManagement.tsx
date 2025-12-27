@@ -274,6 +274,8 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     );
 
     function OrderCard({ order }: { order: typeof filteredOrders[0] }) {
+        const [isProcessing, setIsProcessing] = useState(false);
+
         return (
             <div id={`order-${order.orderId}`} className="bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-gray-500 transition-colors">
                 <div className="flex justify-between items-start mb-4">
@@ -365,29 +367,53 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                         {order.status === 'delivered' && (
                             <button
                                 onClick={async () => {
-                                    if (confirm('¿Confirmar pago recibido y otorgar puntos?')) {
-                                        console.log('🔍 DEBUG: Aprobando pedido', { orderId: order.orderId, isGuest: order.isGuest, userEmail: order.userEmail });
+                                    if (!confirm('¿Confirmar pago recibido y otorgar puntos?')) return;
 
-                                        if (order.isGuest) {
-                                            const updated = guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: 'approved' as const } : o);
-                                            updateGuestOrders(updated);
-                                            await pushToCloud('rb_orders', [{ ...order, status: 'approved', id: order.orderId }]);
-                                            console.log('✅ Guest order approved and synced');
-                                        } else {
-                                            console.log('🔍 Calling confirmOrderRewards...');
-                                            const updatedUsers = confirmOrderRewards(order.orderId, order.userEmail, registeredUsers);
-                                            console.log('🔍 Updated users:', updatedUsers.find(u => u.email === order.userEmail)?.orders.find(o => o.orderId === order.orderId));
-                                            updateUsers(updatedUsers);
-                                            console.log('✅ Registered user order approved and synced via rb_users');
-                                        }
-                                        // CONFETTI CELEBRATION! 🎊
-                                        triggerSuccessConfetti();
-                                        console.log('🎊 Confetti triggered!');
+                                    setIsProcessing(true);
+                                    try {
+                                        // Timeout protection: 10 seconds max
+                                        const processWithTimeout = Promise.race([
+                                            (async () => {
+                                                console.log('🔍 DEBUG: Aprobando pedido', { orderId: order.orderId, isGuest: order.isGuest, userEmail: order.userEmail });
+
+                                                if (order.isGuest) {
+                                                    const updated = guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: 'approved' as const } : o);
+                                                    updateGuestOrders(updated);
+                                                    await pushToCloud('rb_orders', [{ ...order, status: 'approved', id: order.orderId }]);
+                                                    console.log('✅ Guest order approved and synced');
+                                                } else {
+                                                    console.log('🔍 Calling confirmOrderRewards...');
+                                                    const updatedUsers = confirmOrderRewards(order.orderId, order.userEmail, registeredUsers);
+                                                    console.log('🔍 Updated users:', updatedUsers.find(u => u.email === order.userEmail)?.orders.find(o => o.orderId === order.orderId));
+                                                    updateUsers(updatedUsers);
+                                                    console.log('✅ Registered user order approved and synced via rb_users');
+                                                }
+                                                // CONFETTI CELEBRATION! 🎊
+                                                triggerSuccessConfetti();
+                                                console.log('🎊 Confetti triggered!');
+                                            })(),
+                                            new Promise((_, reject) =>
+                                                setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado')), 10000)
+                                            )
+                                        ]);
+
+                                        await processWithTimeout;
+                                    } catch (error) {
+                                        console.error('❌ Error al aprobar pedido:', error);
+                                        const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+                                        alert(`⚠️ Error al procesar:\n${errorMsg}\n\nIntenta de nuevo o contacta soporte.`);
+                                    } finally {
+                                        // ALWAYS reset to unblock button
+                                        setIsProcessing(false);
                                     }
                                 }}
-                                className="w-full py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] flex items-center justify-center gap-2 transform active:scale-95 transition-all"
+                                disabled={isProcessing}
+                                className={`w-full py-4 rounded-xl font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] flex items-center justify-center gap-2 transform active:scale-95 transition-all ${isProcessing
+                                        ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                                        : 'bg-green-600 hover:bg-green-500 text-white'
+                                    }`}
                             >
-                                💰 PAGO RECIBIDO / CERRAR
+                                {isProcessing ? '⏳ PROCESANDO...' : '💰 PAGO RECIBIDO / CERRAR'}
                             </button>
                         )}
 
