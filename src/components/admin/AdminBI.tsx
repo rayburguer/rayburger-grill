@@ -12,6 +12,9 @@ interface AdminBIProps {
 
 export const AdminBI: React.FC<AdminBIProps> = ({ orders }) => {
     const stats = useMemo(() => {
+        // Filter VALID Sales only (Approved or Delivered)
+        const validOrders = orders.filter(o => o.status === 'approved' || o.status === 'delivered');
+
         // Daily Sales (Last 7 days)
         const dailyMap = new Map();
         const now = new Date();
@@ -26,7 +29,7 @@ export const AdminBI: React.FC<AdminBIProps> = ({ orders }) => {
         let deliveryCount = 0;
         let pickupCount = 0;
 
-        orders.forEach(order => {
+        validOrders.forEach(order => {
             // Daily Sales
             const dateKey = new Date(order.timestamp).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
             if (dailyMap.has(dateKey)) {
@@ -54,7 +57,7 @@ export const AdminBI: React.FC<AdminBIProps> = ({ orders }) => {
             { name: 'Retiro', value: pickupCount, color: '#6366f1' }
         ];
 
-        return { dailyData, productData, deliveryData };
+        return { dailyData, productData, deliveryData, totalSales: validOrders.reduce((acc, o) => acc + (o.totalUsd || 0), 0) };
     }, [orders]);
 
     return (
