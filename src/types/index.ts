@@ -58,6 +58,7 @@ export interface Order {
 export interface User {
   email: string;
   name: string;
+  lastName?: string; // NEW: Last name for full identification in raffles
   phone: string;
   passwordHash: string;
   referralCode: string;
@@ -68,6 +69,9 @@ export interface User {
   lastPointsUpdate?: number; // For expiration tracking
   role: 'admin' | 'customer';
   nextPurchaseMultiplier?: number; // NEW: Retention Marketing (e.g. 2x points)
+  birthDate?: string; // NEW: Optional birthday (YYYY-MM-DD) for age analytics and birthday promos
+  registrationDate?: number; // Timestamp of registration
+  registeredVia?: 'web' | 'pos'; // Track registration source
   orders: Order[];
   // Anti-Fraud: Track referral activity
   referralStats?: {

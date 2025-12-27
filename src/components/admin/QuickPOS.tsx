@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Product } from '../../types';
+import { Product, User } from '../../types';
 import { Plus, Minus, Trash2, ShoppingBag, Banknote, Smartphone, CreditCard, X as XIcon } from 'lucide-react';
 import { POSProductCustomizer } from './POSProductCustomizer';
 
@@ -15,9 +15,10 @@ interface QuickPOSProps {
     tasaBs: number;
     cashierName: string;
     onProcessOrder: (orderData: any) => Promise<void>;
+    registeredUsers: User[];
 }
 
-export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierName, onProcessOrder }) => {
+export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierName, onProcessOrder, registeredUsers }) => {
     const [posCart, setPosCart] = useState<POSCartItem[]>([]);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'pago_movil' | 'zelle'>('pago_movil');
@@ -119,7 +120,17 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
                 paymentMethod: paymentMethod,
                 deliveryMethod: deliveryMethod,
                 deliveryFee: deliveryMethod === 'delivery' ? deliveryFee : 0,
-                customerName: customerPhone ? 'Cliente Registrado' : 'Cliente en Local',
+                customerName: (() => {
+                    if (!customerPhone) return 'Cliente en Local';
+                    // Normalize input for lookup
+                    const cleanInput = customerPhone.replace(/\D/g, '');
+                    // Try to find user (checking both local 0412... and international 58412... formats)
+                    const user = registeredUsers.find(u => {
+                        const uPhone = u.phone.replace(/\D/g, '');
+                        return uPhone === cleanInput || uPhone.endsWith(cleanInput) || cleanInput.endsWith(uPhone);
+                    });
+                    return user ? user.name : 'Cliente Registrado';
+                })(),
                 customerPhone: customerPhone ? (customerPhone.startsWith('0') ? `+58${customerPhone.substring(1)}` : customerPhone) : undefined,
                 status: 'pending',
                 processedBy: cashierName,

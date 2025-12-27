@@ -197,18 +197,61 @@ export const useCloudSync = () => {
                 console.log(`✅ Pulled ${products.length} products`);
             }
 
-            // 2. USERS
+            // 2. USERS (with intelligent merge)
             const { data: users, error: userError } = await supabase.from('rb_users').select('*');
             if (userError) errors.push(`Users: ${userError.message}`);
             else if (users) {
-                // Map back ID -> Email if needed, but we use email as ID in sync logic
-                const localUsers = users.map(u => {
-                    const { id, ...rest } = u; // Remove Supabase ID if it conflicts, but our ID is email
-                    return { ...rest };
+                // Get current local users
+                const currentLocalUsers = JSON.parse(localStorage.getItem('rayburger_registered_users') || '[]');
+                const localUsersMap = new Map(currentLocalUsers.map((u: any) => [u.email, u]));
+
+                // Merge remote users with local, preserving advanced order statuses
+                const mergedUsers = users.map(remoteUser => {
+                    const { id, ...rest } = remoteUser;
+                    const localUser = localUsersMap.get(rest.email);
+
+                    if (!localUser) {
+                        // New user from cloud, just use it
+                        return rest;
+                    }
+
+                    // Merge orders: preserve local status if more advanced
+                    const statusPriority: Record<string, number> = {
+                        'approved': 3,
+                        'delivered': 2,
+                        'pending': 1,
+                        'rejected': 0
+                    };
+
+                    const remoteOrdersMap = new Map((rest.orders || []).map((o: any) => [o.orderId, o]));
+                    const localOrders = localUser.orders || [];
+
+                    const mergedOrders = (rest.orders || []).map((remoteOrder: any) => {
+                        const localOrder = localOrders.find((lo: any) => lo.orderId === remoteOrder.orderId);
+
+                        if (!localOrder) return remoteOrder;
+
+                        // Compare status priority
+                        const localPriority = statusPriority[localOrder.status || 'pending'] || 0;
+                        const remotePriority = statusPriority[remoteOrder.status || 'pending'] || 0;
+
+                        // If local is more advanced, use local order
+                        return localPriority > remotePriority ? localOrder : remoteOrder;
+                    });
+
+                    // Add any local orders that don't exist in remote
+                    localOrders.forEach((localOrder: any) => {
+                        if (!remoteOrdersMap.has(localOrder.orderId)) {
+                            mergedOrders.push(localOrder);
+                        }
+                    });
+
+                    return { ...rest, orders: mergedOrders };
                 });
-                localStorage.setItem('rayburger_registered_users', JSON.stringify(localUsers));
+
+                localStorage.setItem('rayburger_registered_users', JSON.stringify(mergedUsers));
                 window.dispatchEvent(new CustomEvent('rayburger_users_updated', { detail: { source: 'cloud_pull' } }));
-                console.log(`✅ Pulled ${users.length} users`);
+                console.log(`✅ Pulled ${users.length} users (with intelligent merge)`);
             }
 
             // 3. SETTINGS (Tasa)

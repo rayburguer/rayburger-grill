@@ -102,7 +102,7 @@ export const SAMPLE_PRODUCTS: Product[] = [
         name: "Perripollo",
         description: "Salchicha de pollo.",
         basePrice_usd: 3.50,
-        image: "https://images.unsplash.com/photo-1619740455993-9e0c79f97a8e?w=600&h=400&fit=crop",
+        image: "/perripollo.jpg",
         category: "Perros",
         customizableOptions: []
     },
