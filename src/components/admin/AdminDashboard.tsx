@@ -85,6 +85,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     );
     const todayTotal = todayApprovedOrders.reduce((sum, o) => sum + o.totalUsd, 0);
 
+    // NEW: Yesterday Total
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const yesterdayEnd = new Date(todayStart);
+    const yesterdayApprovedOrders = allOrders.filter(o =>
+        (o.status === 'approved' || o.status === 'delivered') &&
+        o.timestamp >= yesterdayStart.getTime() &&
+        o.timestamp < yesterdayEnd.getTime()
+    );
+    const yesterdayTotal = yesterdayApprovedOrders.reduce((sum, o) => sum + o.totalUsd, 0);
+
     const surveyStats = getStats();
     const [isEditing, setIsEditing] = useState(false);
     const [currentProduct, setCurrentProduct] = useState<Partial<Product>>({});
@@ -182,11 +193,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </h2>
                                 <span className="px-2 py-0.5 bg-green-900/50 text-green-400 text-[10px] lg:text-xs rounded-full border border-green-700">Premium</span>
                             </div>
-                            <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[10px] uppercase font-black text-gray-500 tracking-widest">Hoy:</span>
-                                <span className="text-xs font-bold text-green-400 bg-green-900/20 px-2 rounded border border-green-800/50 scale-110 origin-left">
-                                    ${todayTotal.toFixed(2)}
-                                </span>
+                            <div className="flex items-center gap-4 mt-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] uppercase font-black text-gray-500 tracking-widest">Ayer:</span>
+                                    <span className="text-xs font-bold text-blue-400 bg-blue-900/20 px-2 rounded border border-blue-800/50">
+                                        ${yesterdayTotal.toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] uppercase font-black text-gray-500 tracking-widest">Hoy:</span>
+                                    <span className="text-xs font-bold text-green-400 bg-green-900/20 px-2 rounded border border-green-800/50 scale-110 origin-left">
+                                        ${todayTotal.toFixed(2)}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -293,8 +312,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
 
                     {isSatelliteMode && (
-                        <div className="flex items-center gap-3">
-                            <span className="text-gray-400">Ventas Turno: <b className="text-white">{localOrders.length}</b></span>
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            <span className="text-gray-400 hidden sm:inline">Ventas Turno: <b className="text-white">{localOrders.length}</b></span>
                             <button
                                 onClick={() => {
                                     const base64 = exportShiftData();
@@ -302,11 +321,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
                                     onShowToast('📋 Reporte enviado a WhatsApp');
                                 }}
-                                className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white rounded font-bold transition-colors flex items-center gap-1.5"
+                                className="px-2 sm:px-3 py-1.5 sm:py-1 bg-green-600 hover:bg-green-500 text-white rounded font-bold transition-all flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs shadow-lg"
                             >
-                                <RefreshCw size={12} /> Cerrar y Exportar
+                                <RefreshCw size={12} className="shrink-0" /> <span className="truncate">Cerrar y Exportar</span>
                             </button>
-                            <button onClick={clearShift} className="text-red-500 hover:text-red-400 p-1" title="Limpiar Turno">
+                            <button onClick={clearShift} className="text-red-500 hover:text-red-400 p-1 bg-red-900/10 rounded" title="Limpiar Turno">
                                 <Trash2 size={14} />
                             </button>
                         </div>
@@ -322,6 +341,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                     let importedCount = 0;
                                                     let pointsAddedCount = 0;
                                                     let skippedCount = 0;
+                                                    let newUsersCount = 0;
 
                                                     const newGuestOrders = [...guestOrders];
                                                     let currentUsers = [...registeredUsers];
@@ -355,6 +375,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                             };
                                                             currentUsers = currentUsers.map(u => u.email === existingUser.email ? updatedUser : u);
                                                             if (pointsToSum > 0) pointsAddedCount++;
+                                                        } else if (order.customerPhone) {
+                                                            // CREACIÓN AUTOMÁTICA DE CLIENTE SI NO EXISTE
+                                                            const newUser: User = {
+                                                                email: `${order.customerPhone}@pos.ray`,
+                                                                phone: order.customerPhone,
+                                                                name: order.customerName || 'Cliente Importado',
+                                                                role: 'customer',
+                                                                loyaltyTier: 'Bronze',
+                                                                points: 50 + (order.pointsEarned || 0), // Bono bienvenida + lo que compró
+                                                                orders: [order],
+                                                                passwordHash: '1234',
+                                                                referralCode: `RB-IMP-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+                                                                referredByCode: 'FUNDADOR'
+                                                            };
+                                                            currentUsers.push(newUser);
+                                                            newUsersCount++;
                                                         } else {
                                                             // Add to guest orders
                                                             newGuestOrders.unshift(order);
@@ -363,7 +399,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                                                     updateUsers(currentUsers);
                                                     updateGuestOrders(newGuestOrders);
-                                                    onShowToast(`✅ ${importedCount} ventas importadas. (${skippedCount} duplicadas omitidas)`);
+                                                    onShowToast(`✅ ${importedCount} ventas. (+${newUsersCount} clientes nuevos creados)`);
                                                 }
                                             } catch (e) {
                                                 console.error('Import error:', e);
@@ -371,9 +407,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             }
                                         }
                                     }}
-                                    className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition-colors flex items-center gap-1.5"
+                                    className="px-2 sm:px-3 py-1.5 sm:py-1 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition-all flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs"
                                 >
-                                    <Upload size={12} /> Importar Turno
+                                    <Upload size={12} className="shrink-0" /> <span className="truncate">Importar Turno</span>
                                 </button>
                             </div>
                         )}
@@ -649,7 +685,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </div>
                                 </div>
                                 <div className="lg:col-span-2 bg-gray-800 p-6 rounded-xl border border-gray-700">
-                                    <h3 className="font-bold text-white mb-4">Base de Datos ({registeredUsers.length})</h3>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="font-bold text-white">Base de Datos ({registeredUsers.length})</h3>
+                                        <button
+                                            onClick={() => {
+                                                const csv = "Nombre,Telefono,Puntos,Email\n" + registeredUsers.map(u => `${u.name},${u.phone},${u.points},${u.email}`).join("\n");
+                                                const blob = new Blob([csv], { type: 'text/csv' });
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = `clientes_rayburger_${new Date().toISOString().split('T')[0]}.csv`;
+                                                a.click();
+                                                onShowToast('📊 Lista de clientes descargada (CSV)');
+                                            }}
+                                            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-[10px] font-black uppercase rounded border border-gray-600 transition-all flex items-center gap-1"
+                                        >
+                                            <Download size={12} /> Exportar CSV
+                                        </button>
+                                    </div>
                                     <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                                         {registeredUsers.map(u => (
                                             <div key={u.phone} className="bg-gray-900/50 p-3 rounded border border-gray-800 flex justify-between items-center">
@@ -780,6 +833,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         <p className="text-xs text-gray-500 uppercase font-bold mb-1">Multiplicador</p>
                                         <p className="text-3xl font-black text-orange-400">3x</p>
                                     </div>
+                                    <div className="flex flex-col">
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest opacity-70">Ayer</p>
+                                        <div className="text-xl font-black text-blue-400 leading-none">${yesterdayTotal.toFixed(2)}</div>
+                                    </div>
+                                    <div className="w-px h-8 bg-gray-700 mx-2" />
+                                    <div className="flex flex-col">
+                                        <p className="text-[10px] text-orange-500 font-bold uppercase tracking-widest">Hoy</p>
+                                        <div className="text-xl font-black text-white leading-none">${todayTotal.toFixed(2)}</div>
+                                    </div>
                                 </div>
 
                                 {/* Message Template */}
@@ -815,16 +877,27 @@ Mientras más amigos traigas, más ganas.
                                     </div>
                                 </div>
 
-                                <button
-                                    onClick={() => {
-                                        const message = `Hola [Nombre], ¡Ray Burger está de vuelta! 🍔🔥\n\nComo eres cliente antiguo, quiero que seas FUNDADOR de nuestro nuevo sistema de lealtad.\n\n🎁 TU CÓDIGO EXCLUSIVO: FUNDADOR\n\nBENEFICIOS FUNDADOR:\n✅ 3x Puntos en TODAS tus compras por 30 días\n✅ Cada 100 puntos = $1 en descuentos o productos gratis\n\nPERO AQUÍ VIENE LO MEJOR:\n💰 Por cada amigo que traigas con tu código:\n   - Él gana 2x Puntos en su primera compra\n   - TÚ ganas 2% de CASHBACK de por vida de lo que él compre\n   \nEjemplo real:\n- Tu amigo gasta $100 → Tú recibes $2 en tu cuenta\n- Traes 10 amigos activos → Ingresos pasivos cada mes 💸\n- Tus puntos → Los canjeas por burgers, combos o descuentos\n\nLink para registrarte: rayburgergrill.com.ve\n\nCuando te registres, copia tu código personal y compártelo.\nMientras más amigos traigas, más ganas.\n\n¿Listo para ser Fundador?`;
-                                        navigator.clipboard.writeText(message);
-                                        onShowToast('📋 Mensaje copiado al portapapeles');
-                                    }}
-                                    className="w-full px-6 py-4 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-900/30"
-                                >
-                                    📋 Copiar Mensaje Completo
-                                </button>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                                    <button
+                                        onClick={() => {
+                                            const message = `Hola [Nombre], ¡Ray Burger está de vuelta! 🍔🔥\n\nComo eres cliente antiguo, quiero que seas FUNDADOR de nuestro nuevo sistema de lealtad.\n\n🎁 TU CÓDIGO EXCLUSIVO: FUNDADOR\n\nBENEFICIOS FUNDADOR:\n✅ 3x Puntos en TODAS tus compras por 30 días\n✅ Cada 100 puntos = $1 en descuentos o productos gratis\n\nPERO AQUÍ VIENE LO MEJOR:\n💰 Por cada amigo que traigas con tu código:\n   - Él gana 2x Puntos en su primera compra\n   - TÚ ganas 2% de CASHBACK de por vida de lo que él compre\n   \nEjemplo real:\n- Tu amigo gasta $100 → Tú recibes $2 en tu cuenta\n- Traes 10 amigos activos → Ingresos pasivos cada mes 💸\n- Tus puntos → Los canjeas por burgers, combos o descuentos\n\nLink para registrarte: rayburgergrill.com.ve\n\nCuando te registres, copia tu código personal y compártelo.\nMientras más amigos traigas, más ganas.\n\n¿Listo para ser Fundador?`;
+                                            navigator.clipboard.writeText(message);
+                                            onShowToast('📋 Mensaje copiado al portapapeles');
+                                        }}
+                                        className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                                    >
+                                        📋 Copiar Texto
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const message = `Hola, ¡Ray Burger está de vuelta! 🍔🔥\n\nComo eres cliente antiguo, quiero que seas FUNDADOR de nuestro nuevo sistema de lealtad.\n\n🎁 TU CÓDIGO EXCLUSIVO: *FUNDADOR*\n\nRegístrate aquí para ganar puntos:\n👉 https://rayburgergrill.com.ve/?ref=FUNDADOR\n\n¡Te esperamos!`;
+                                            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+                                        }}
+                                        className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-900/40"
+                                    >
+                                        📲 Enviar por WhatsApp
+                                    </button>
+                                </div>
                             </div>
 
                             {/* VIP LINK SECTION (Existing) */}
@@ -974,11 +1047,56 @@ const CloudSyncSection: React.FC<{ onShowToast: (msg: string) => void }> = ({ on
                     </button>
                 </div>
 
-                {status === 'error' && (
-                    <p className="text-center text-red-400 text-sm mt-2">
-                        Hubo un problema. Revisa la consola o tu conexión. (Supabase Keys)
+                <div className="mt-8 p-4 bg-blue-900/20 border border-blue-500/30 rounded-xl">
+                    <h4 className="text-blue-400 font-bold mb-2 flex items-center gap-2">💡 ¿Cómo sincronizar 2 dispositivos?</h4>
+                    <ol className="text-xs text-gray-400 space-y-2 list-decimal ml-4">
+                        <li>En el dispositivo con los cambios: Pulsa <b className="text-white">"Iniciar Migración Cloud"</b>.</li>
+                        <li>En el dispositivo donde quieres ver los datos: Pulsa <b className="text-white">"Descargar Cambios"</b>.</li>
+                        <li><span className="text-white font-bold">¡Listo!</span> Los datos se habrán fusionado correctamente.</li>
+                    </ol>
+                </div>
+
+                {/* MAINTENANCE SECTION */}
+                <div className="mt-8 p-6 bg-red-900/10 border border-red-500/20 rounded-2xl">
+                    <h4 className="text-red-500 font-bold mb-4 flex items-center gap-2">⚙️ Mantenimiento de Datos</h4>
+                    <p className="text-xs text-gray-400 mb-6 leading-relaxed">
+                        Esta herramienta permite limpiar el historial de pruebas. Eliminará todos los pedidos realizados <b className="text-white">antes del 26 de diciembre</b>. Los puntos actuales de los clientes NO se verán afectados.
                     </p>
-                )}
+                    <button
+                        onClick={async () => {
+                            const purgeDate = new Date('2025-12-26T00:00:00').getTime();
+                            const ordersToPurge = allOrders.filter(o => o.timestamp < purgeDate).length;
+
+                            if (ordersToPurge === 0) {
+                                onShowToast('✨ No hay datos de prueba antiguos para limpiar.');
+                                return;
+                            }
+
+                            const confirmed = confirm(`⚠️ Se eliminarán ${ordersToPurge} pedidos de prueba (Anteriores al 26/12).\n¿Estás seguro? Esta acción no se puede deshacer.`);
+
+                            if (confirmed) {
+                                // 1. Purge Guest Orders
+                                const cleanGuestOrders = guestOrders.filter(o => o.timestamp >= purgeDate);
+                                updateGuestOrders(cleanGuestOrders);
+
+                                // 2. Purge Registered User Orders
+                                const cleanUsers = registeredUsers.map(u => ({
+                                    ...u,
+                                    orders: (u.orders || []).filter(o => o.timestamp >= purgeDate)
+                                }));
+                                updateUsers(cleanUsers);
+
+                                onShowToast(`🧹 Base de datos limpia: ${ordersToPurge} registros eliminados.`);
+
+                                // Reset counters for refresh
+                                setTimeout(() => window.location.reload(), 1500);
+                            }
+                        }}
+                        className="w-full sm:w-auto px-6 py-3 bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/30 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm"
+                    >
+                        <Trash2 size={16} /> Limpiar Datos de Prueba (Pre-26 Dic)
+                    </button>
+                </div>
             </div>
         </div>
     );
