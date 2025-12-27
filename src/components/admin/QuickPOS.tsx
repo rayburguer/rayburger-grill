@@ -106,6 +106,7 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
         if (posCart.length === 0 || isProcessing) return;
 
         setIsProcessing(true);
+
         try {
             const orderData = {
                 orderId: `POS-${Date.now()}`,
@@ -122,9 +123,7 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
                 deliveryFee: deliveryMethod === 'delivery' ? deliveryFee : 0,
                 customerName: (() => {
                     if (!customerPhone) return 'Cliente en Local';
-                    // Normalize input for lookup
                     const cleanInput = customerPhone.replace(/\D/g, '');
-                    // Try to find user (checking both local 0412... and international 58412... formats)
                     const user = registeredUsers.find(u => {
                         const uPhone = u.phone.replace(/\D/g, '');
                         return uPhone === cleanInput || uPhone.endsWith(cleanInput) || cleanInput.endsWith(uPhone);
@@ -137,13 +136,28 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
                 pointsEarned: Math.floor(cartTotalUsd)
             };
 
-            await onProcessOrder(orderData);
+            // Execute the order processing with timeout protection
+            const processWithTimeout = Promise.race([
+                onProcessOrder(orderData),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado')), 10000)
+                )
+            ]);
+
+            await processWithTimeout;
+
+            // Success: Clear cart and close modal
             setPosCart([]);
             setCustomerPhone('');
+            setDeliveryFee(0);
             setIsCheckingOut(false);
+
         } catch (error) {
-            console.error("Error processing order:", error);
+            console.error("❌ Error processing order:", error);
+            const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+            alert(`⚠️ Error al procesar la venta:\n${errorMessage}\n\nPor favor intenta de nuevo o contacta soporte.`);
         } finally {
+            // ALWAYS reset processing state to unblock the button
             setIsProcessing(false);
         }
     };
