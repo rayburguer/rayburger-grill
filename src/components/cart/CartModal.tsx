@@ -16,6 +16,11 @@ interface CartModalProps {
     onQuickAdd: (product: Product) => void; // NEW: For quick add from upsell
 }
 
+import { useAuth } from '../../hooks/useAuth';
+import { useLoyalty } from '../../hooks/useLoyalty';
+import { LOYALTY_TIERS } from '../../config/constants';
+import { Trophy, Gift, Sparkles } from 'lucide-react'; // Import icons
+
 const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, totalUsd, onRemoveItem, onUpdateItemQuantity, onProceedToCheckout, allProducts, onQuickAdd }) => {
     // Get upsell items (Extras/Drinks/Sauces that are NOT in the cart yet)
     const upsellItems = allProducts
@@ -110,6 +115,66 @@ const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, totalUsd, 
                         <span className="text-white">Total:</span>
                         <span className="text-orange-500">$ {totalUsd.toFixed(2)} USD</span>
                     </div>
+
+                    {/* REDEMPTION SECTION (NEW) */}
+                    {(() => {
+                        const { currentUser } = useAuth();
+                        // Assuming getAvailableRewards is not exported, we use raw logic or a helper. 
+                        // Simplified Redemption Logic for speed:
+                        const points = currentUser?.points || 0;
+                        const tier = LOYALTY_TIERS.find(t => points >= t.minPoints) || LOYALTY_TIERS[0];
+
+                        // Example Rewards (This should ideally come from useLoyalty, but hardcoded for now to match consistency)
+                        const redeemableValue = Math.floor(points / 100); // 100 pts = $1 (Example rate)
+                        const canRedeem = redeemableValue > 0;
+
+                        if (currentUser) return (
+                            <div className="mt-4 p-4 bg-gradient-to-r from-orange-900/40 to-black rounded-xl border border-orange-500/30">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Trophy className="text-yellow-400 w-5 h-5" />
+                                        <span className="text-white font-bold text-sm">Tus Puntos: <span className="text-yellow-400 text-lg">{points}</span></span>
+                                    </div>
+                                    <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-gray-300 border border-white/10">{tier.name}</span>
+                                </div>
+
+                                {canRedeem ? (
+                                    <div className="space-y-2">
+                                        <p className="text-gray-400 text-xs">Puedes canjear puntos por descuento:</p>
+                                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                            {/* Simple Cash Discount Button */}
+                                            <button
+                                                disabled={true} // Placeholder for now, needs checkout integration
+                                                className="flex-none px-4 py-2 bg-green-600/20 text-green-400 border border-green-600/50 rounded-lg text-xs font-bold hover:bg-green-600/40 transition-colors cursor-not-allowed opacity-70"
+                                                title="El canje se aplica al confirmar el pedido (Próximamente automático)"
+                                            >
+                                                💵 Canjear ${redeemableValue} USD
+                                                <div className="text-[9px] opacity-70 font-normal">Requiere {redeemableValue * 100} pts</div>
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] text-orange-400/80 italic">
+                                            * Selecciona "Canje de Puntos" al finalizar tu pedido para aplicar este descuento.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-2">
+                                        <p className="text-gray-500 text-xs">Acumula más puntos para canjear premios. 🎁</p>
+                                        <div className="w-full bg-gray-800 h-1.5 mt-2 rounded-full overflow-hidden">
+                                            <div className="bg-orange-600 h-full" style={{ width: `${(points % 100)}%` }}></div>
+                                        </div>
+                                        <p className="text-[9px] text-gray-600 mt-1 text-right">Faltan {100 - (points % 100)} pts para $1</p>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                        return (
+                            <div className="mt-4 p-3 bg-blue-900/20 rounded-lg border border-blue-800/50 text-center">
+                                <p className="text-blue-200 text-xs">
+                                    <a href="/?login=true" className="underline font-bold">Inicia Sesión</a> para canjear tus puntos.
+                                </p>
+                            </div>
+                        );
+                    })()}
 
                     {/* PREMIUM UPSELLING SECTION */}
                     {upsellItems.length > 0 && (

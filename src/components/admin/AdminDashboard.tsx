@@ -649,9 +649,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         updateUsers([...registeredUsers, newUser]);
                                         onShowToast(`🎉 ¡Cliente nuevo registrado! (+50 pts bono)`);
 
-                                        // VIRAL INVITATION Message
+                                        // VIRAL INVITATION Message (With Credentials)
                                         const totalBs = (orderData.totalUsd * tasaBs).toFixed(2);
-                                        whatsappMessage = `🍔 ¡Bienvenido a Ray Burger!\n\nAcabamos de registrar tu compra de $${orderData.totalUsd.toFixed(2)} (${totalBs} Bs).\n\n🎁 *TE REGALAMOS $50* de bienvenida en puntos para tu próxima compra.\n\nRegístrate aquí para ver tus puntos y ganar más:\n👉 https://rayburgergrill.com.ve/?ref=FUNDADOR\n\n¡Gracias por elegirnos! 🔥`;
+                                        const userPassword = '1234'; // Default POS password
+                                        whatsappMessage = `🍔 ¡Hola! Gracias por tu compra en Ray Burger.\n\n🧾 *Total:* $${orderData.totalUsd.toFixed(2)} (${totalBs} Bs)\n🎁 *Puntos Ganados:* ${newOrder.pointsEarned}\n\n🔓 *ACCESO A TUS PUNTOS:*\nUsuario: ${orderData.customerPhone}\nClave: ${userPassword}\n\n👇 Entra aquí para canjear premios:\nhttps://rayburgergrill.com.ve/`;
                                     }
 
                                     // Trigger WhatsApp
@@ -1000,8 +1001,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                                     <div className="flex-1 bg-gray-900 rounded-full h-6 overflow-hidden">
                                                                         <div
                                                                             className={`h-full flex items-center justify-end pr-2 transition-all ${group === dominantGroup
-                                                                                    ? 'bg-gradient-to-r from-orange-600 to-orange-400'
-                                                                                    : 'bg-gradient-to-r from-gray-600 to-gray-500'
+                                                                                ? 'bg-gradient-to-r from-orange-600 to-orange-400'
+                                                                                : 'bg-gradient-to-r from-gray-600 to-gray-500'
                                                                                 }`}
                                                                             style={{ width: `${(count / maxCount) * 100}%` }}
                                                                         >

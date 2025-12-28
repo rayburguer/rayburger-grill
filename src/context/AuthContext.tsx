@@ -60,34 +60,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 const parsedUsers = JSON.parse(storedUsers);
                 if (Array.isArray(parsedUsers)) {
                     // SEED ADMIN IF MISSING (Self-Healing)
-                    const masterEmails = ['raimundovivas17@gmail.com'];
-                    const masterPhones = ['04128344594', '04243439729', '04162101833'];
-
-                    let usersList = parsedUsers.map(migrateUser);
-
-                    // Ensure all master credentials have admin role
-                    usersList = usersList.map(u => {
-                        if (masterEmails.includes(u.email) || masterPhones.includes(u.phone)) {
-                            return { ...u, role: 'admin' as const };
-                        }
-                        return u;
-                    });
-
-                    const adminExists = usersList.some(u => masterEmails.includes(u.email));
-                    if (!adminExists) {
-                        usersList.push({
-                            name: 'Administrador Ray',
-                            email: 'raimundovivas17@gmail.com',
-                            passwordHash: '412781', // Admin pass for master
-                            phone: '04128344594',
-                            role: 'admin',
-                            points: 1000,
-                            loyaltyTier: 'Diamond',
-                            referralCode: 'ADMIN-MASTER',
-                            orders: [],
-                            lastPointsUpdate: Date.now()
-                        });
-                    }
+                    const usersList = parsedUsers.map(migrateUser);
                     setRegisteredUsers(usersList);
                 }
             }

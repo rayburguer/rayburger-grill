@@ -6,7 +6,11 @@ import { WHATSAPP_URL } from '../../config/constants';
 const faqs = [
     {
         question: "¿Cómo gano puntos?",
-        answer: "¡Ganas puntos con cada compra! Recibes entre un 3% y un 8% de Cashback dependiendo de tu nivel (Bronze, Silver, Gold, Platinum). Además, ¡te regalamos 50 puntos solo por registrarte!"
+        answer: "¡Ganas puntos en TODAS tus compras! Si pides por la Web, se suman automático. Si pides por WhatsApp o en el Local, nuestro sistema te crea una cuenta al instante y te enviamos tus puntos en el recibo. ¡Nadie se queda sin premio!"
+    },
+    {
+        question: "¿Cuál es mi Usuario y Clave?",
+        answer: "Si es tu primera vez comprando por WhatsApp o en el Local, tu usuario es tu **Número de Celular** y tu clave temporal es **1234**. Puedes cambiarla luego en tu perfil. Si te registraste por la Web, usa la clave que elegiste."
     },
     {
         question: "¿Qué es la Ruleta Semanal?",

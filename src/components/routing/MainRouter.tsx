@@ -1,12 +1,11 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import Storefront from '../../Storefront';
+import Storefront from '../../pages/client/Storefront'; // Correct path
+import AdminRoute from '../auth/guards/AdminRoute'; // Import AdminRoute
 import AdminDashboard from '../admin/AdminDashboard';
 import { useAuth } from '../../hooks/useAuth';
 import { useSettings } from '../../hooks/useSettings';
 import Toast from '../ui/Toast';
-import { useState, useCallback } from 'react';
-
 const MainRouter: React.FC = () => {
     const navigate = useNavigate();
     const { currentUser, registeredUsers, updateUsers } = useAuth();
@@ -26,32 +25,28 @@ const MainRouter: React.FC = () => {
     return (
         <>
             <Routes>
-                {/* Storefront Route */}
+                {/* 🛒 VISTA CLIENTE (Pública) */}
                 <Route path="/" element={<Storefront />} />
 
-                {/* Admin Route - Protected */}
-                <Route
-                    path="/admin"
-                    element={
-                        currentUser?.role === 'admin' ? (
-                            <AdminDashboard
-                                isOpen={true}
-                                onClose={() => navigate('/')}
-                                registeredUsers={registeredUsers}
-                                updateUsers={updateUsers}
-                                tasaBs={tasaBs}
-                                onUpdateTasa={updateTasa}
-                                guestOrders={guestOrders}
-                                updateGuestOrders={updateGuestOrders}
-                                onShowToast={showToast}
-                            />
-                        ) : (
-                            <Navigate to="/" replace />
-                        )
-                    }
-                />
+                {/* 🔐 VISTA ADMIN (Protegida) */}
+                <Route path="/admin" element={<AdminRoute />}>
+                    <Route index element={
+                        <AdminDashboard
+                            isOpen={true}
+                            onClose={() => navigate('/')}
+                            registeredUsers={registeredUsers}
+                            updateUsers={updateUsers}
+                            tasaBs={tasaBs}
+                            onUpdateTasa={updateTasa}
+                            guestOrders={guestOrders}
+                            updateGuestOrders={updateGuestOrders}
+                            onShowToast={showToast}
+                        />
+                    } />
+                    {/* Aquí podrías agregar más subrutas: /admin/products, /admin/orders, etc. */}
+                </Route>
 
-                {/* Fallback */}
+                {/* 🔄 REDIRECCIONES */}
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             {isToastVisible && <Toast message={toastMessage} onClose={closeToast} />}

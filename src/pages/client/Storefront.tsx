@@ -4,43 +4,43 @@ import { useNavigate } from 'react-router-dom';
 import { Search, TrendingUp } from 'lucide-react';
 
 // Components
-import Header from './components/layout/Header';
-import Footer from './components/layout/Footer';
-import ProductCard from './components/products/ProductCard';
-import ProductCardSkeleton from './components/ui/ProductCardSkeleton';
-import ProductDetailModal from './components/products/ProductDetailModal';
-import CartModal from './components/cart/CartModal';
-import CheckoutModal from './components/checkout/CheckoutModal';
-import RegisterModal from './components/auth/RegisterModal';
-import LoginModal from './components/auth/LoginModal';
-import UserProfileModal from './components/user/UserProfileModal';
-// import AdminDashboard from './components/admin/AdminDashboard'; // REMOVED redundancy
-import HeroSection from './components/layout/HeroSection';
-import FAQSection from './components/layout/FAQSection';
-import OrderStatusTracker from './components/ui/OrderStatusTracker';
-import SurveyModal from './components/feedback/SurveyModal';
-import LeaderboardModal from './components/loyalty/LeaderboardModal';
-import Toast from './components/ui/Toast';
-import FloatingCart from './components/ui/FloatingCart';
-import InstallPrompt from './components/ui/InstallPrompt';
-import RouletteModal from './components/loyalty/RouletteModal';
-import { RankingSection } from './components/sections/RankingSection';
-import { IngredientVoting } from './components/voting/IngredientVoting';
+import Header from '../../components/layout/Header';
+import Footer from '../../components/layout/Footer';
+import ProductCard from '../../components/products/ProductCard';
+import ProductCardSkeleton from '../../components/ui/ProductCardSkeleton';
+import ProductDetailModal from '../../components/products/ProductDetailModal';
+import CartModal from '../../components/cart/CartModal';
+import CheckoutModal from '../../components/checkout/CheckoutModal';
+import RegisterModal from '../../components/auth/RegisterModal';
+import LoginModal from '../../components/auth/LoginModal';
+import UserProfileModal from '../../components/user/UserProfileModal';
+// import AdminDashboard from '../../components/admin/AdminDashboard'; // REMOVED redundancy
+import HeroSection from '../../components/layout/HeroSection';
+import FAQSection from '../../components/layout/FAQSection';
+import OrderStatusTracker from '../../components/ui/OrderStatusTracker';
+import SurveyModal from '../../components/feedback/SurveyModal';
+import LeaderboardModal from '../../components/loyalty/LeaderboardModal';
+import Toast from '../../components/ui/Toast';
+import FloatingCart from '../../components/ui/FloatingCart';
+import InstallPrompt from '../../components/ui/InstallPrompt';
+import RouletteModal from '../../components/loyalty/RouletteModal';
+import { RankingSection } from '../../components/sections/RankingSection';
+import { IngredientVoting } from '../../components/voting/IngredientVoting';
 
-// Hooks
-import { useCart } from './hooks/useCart';
-import { useAuth } from './hooks/useAuth';
-import { useProducts } from './hooks/useProducts';
-import { useLoyalty } from './hooks/useLoyalty';
-import { useSurveys } from './hooks/useSurveys';
-import { useSettings } from './hooks/useSettings';
-import { useCloudSync } from './hooks/useCloudSync';
+import { useCart } from '../../hooks/useCart';
+import { useAuth } from '../../hooks/useAuth';
+import { useProducts } from '../../hooks/useProducts';
+import { useLoyalty } from '../../hooks/useLoyalty';
+import { useSurveys } from '../../hooks/useSurveys';
+import { useSettings } from '../../hooks/useSettings';
+import { useCloudSync } from '../../hooks/useCloudSync';
 
 // Data & Config
-import { ALL_CATEGORIES_KEY, SKIP_LINK_ID } from './config/constants';
-import { generateUuid } from './utils/helpers';
-import { Product, User, Order } from './types';
-import { generateWhatsAppLink } from './utils/whatsapp';
+import { ALL_CATEGORIES_KEY, SKIP_LINK_ID } from '../../config/constants'; // Fix path
+import { generateUuid } from '../../utils/helpers';
+import '../../index.css';
+import { Product, User, Order } from '../../types'; // Fix path
+import { generateWhatsAppLink } from '../../utils/whatsapp'; // Fix path
 
 // --- STABILIZED SUB-COMPONENTS ---
 const MemoizedHeader = React.memo(Header);
@@ -370,7 +370,7 @@ const Storefront: React.FC = () => {
     const handleAddToCart = useCallback((product: Product, quantity: number, selectedOptions: { [optionId: string]: boolean }, finalPrice: number) => {
         addToCart(product, quantity, selectedOptions, finalPrice);
         showToast(quantity + "x " + product.name + " añadido!");
-        import('./utils/confetti').then(({ triggerConfetti }) => triggerConfetti());
+        import('../../utils/confetti').then(({ triggerConfetti }) => triggerConfetti());
         closeProductDetail();
     }, [addToCart, showToast, closeProductDetail]);
 
@@ -386,7 +386,7 @@ const Storefront: React.FC = () => {
         if (addedCount > 0) {
             showToast(`🔄 ¡${addedCount} items agregados!`);
             openCart();
-            import('./utils/confetti').then(({ triggerConfetti }) => triggerConfetti());
+            import('../../utils/confetti').then(({ triggerConfetti }) => triggerConfetti());
         }
     }, [products, addToCart, showToast, openCart]);
 
@@ -394,7 +394,7 @@ const Storefront: React.FC = () => {
         // Add product directly with quantity 1 and base price (no customizations)
         addToCart(product, 1, {}, product.basePrice_usd);
         showToast(`✅ ${product.name} añadido!`);
-        import('./utils/confetti').then(({ triggerConfetti }) => triggerConfetti());
+        import('../../utils/confetti').then(({ triggerConfetti }) => triggerConfetti());
     }, [addToCart, showToast]);
 
     const categories = useMemo(() => {

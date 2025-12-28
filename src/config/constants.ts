@@ -47,6 +47,13 @@ export const POINTS_EARN_RATE_PER_USD = 0; // Deprecado
 export const REFERRAL_BONUS_POINTS = 0; // Deprecado
 export const CASHBACK_TIER_RATES = { Bronze: 0, Silver: 0, Gold: 0, Platinum: 0 }; // Deprecado
 
+// NIVELES DE LEALTAD
+export const LOYALTY_TIERS = [
+    { name: 'Bronze', minPoints: 0, multiplier: 1, color: 'text-orange-600' },
+    { name: 'Silver', minPoints: 500, multiplier: 1.5, color: 'text-gray-400' },
+    { name: 'Gold', minPoints: 1000, multiplier: 2, color: 'text-yellow-400' },
+    { name: 'Platinum', minPoints: 5000, multiplier: 3, color: 'text-purple-400' },
+];
 
 export const ROULETTE_COOLDOWN_DAYS = 7;
 export const UNLOCK_THRESHOLD = 100;

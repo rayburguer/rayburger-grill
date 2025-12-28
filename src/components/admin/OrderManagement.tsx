@@ -21,7 +21,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     const { confirmOrderRewards, rejectOrder } = useLoyalty();
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState<'pending' | 'received' | 'preparing' | 'shipped' | 'payment_confirmed' | 'approved' | 'rejected' | 'all'>('pending');
-    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['today'])); // Default: only "today" expanded
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['today', 'yesterday', 'thisWeek', 'older'])); // Default ALL OPEN // Default: only "today" expanded
 
     // EFFECT: Auto-scroll to highlighted order if provided via deep link
     React.useEffect(() => {
@@ -345,8 +345,8 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                                 onClick={() => {
                                     const newStatus = 'delivered';
                                     const updated = order.isGuest
-                                        ? guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: newStatus as const } : o)
-                                        : registeredUsers.map(u => u.email === order.userEmail ? { ...u, orders: u.orders.map(o => o.orderId === order.orderId ? { ...o, status: newStatus as const } : o) } : u);
+                                        ? guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: newStatus as any } : o)
+                                        : registeredUsers.map(u => u.email === order.userEmail ? { ...u, orders: u.orders.map(o => o.orderId === order.orderId ? { ...o, status: newStatus as any } : o) } : u);
 
                                     if (order.isGuest) {
                                         updateGuestOrders(updated as Order[]);
@@ -383,6 +383,11 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                                                     console.log('✅ Guest order approved and synced');
                                                 } else {
                                                     console.log('🔍 Calling confirmOrderRewards...');
+                                                    const targetUser = registeredUsers.find(u => u.email === order.userEmail);
+                                                    if (!targetUser) {
+                                                        alert(`⛔ ERROR DE DIAGNÓSTICO:\n\nEl usuario "${order.userEmail}" NO se encuentra en la lista local de ${registeredUsers.length} usuarios.\n\nSOLUCIÓN: Recarga la página (F5) para descargar la lista actualizada o revisa la pestaña CLOUD.`);
+                                                        throw new Error('Usuario no encontrado localmente');
+                                                    }
                                                     const updatedUsers = confirmOrderRewards(order.orderId, order.userEmail, registeredUsers);
                                                     console.log('🔍 Updated users:', updatedUsers.find(u => u.email === order.userEmail)?.orders.find(o => o.orderId === order.orderId));
                                                     updateUsers(updatedUsers);
@@ -409,47 +414,43 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                                 }}
                                 disabled={isProcessing}
                                 className={`w-full py-4 rounded-xl font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] flex items-center justify-center gap-2 transform active:scale-95 transition-all ${isProcessing
-                                        ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                                        : 'bg-green-600 hover:bg-green-500 text-white'
+                                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                                    : 'bg-green-600 hover:bg-green-500 text-white'
                                     }`}
                             >
-                                {isProcessing ? '⏳ PROCESANDO...' : '💰 PAGO RECIBIDO / CERRAR'}
+                                {isProcessing ? '⏳ PROCESANDO...' : '✅ PAGO RECIBIDO / CERRAR (NUEVO)'}
                             </button>
                         )}
 
-                        <div className="flex gap-2">
-                            {/* Reject Button (Smaller but accessible) */}
+                        {/* FORCE CLOSE BUTTON - The nuclear option */}
+                        {(!order.status || order.status === 'pending' || order.status === 'delivered') && (
                             <button
-                                onClick={() => handleReject(order.orderId, order.userEmail, !!order.isGuest)}
-                                className="flex-1 py-3 bg-red-900/20 text-red-500 hover:bg-red-900/40 rounded-xl transition-colors text-sm font-bold border border-red-900/30"
+                                onClick={() => {
+                                    // FORCE APPROVE LOGIC (No Confirm, Auto-fix missing users)
+                                    const forcedNewStatus = 'approved';
+                                    let targetUser = registeredUsers.find(u => u.email === order.userEmail);
+
+                                    // 1. If User Missing, Try to find by Phone
+                                    if (!targetUser && order.customerPhone) {
+                                        targetUser = registeredUsers.find(u => u.phone === order.customerPhone);
+                                    }
+
+                                    if (order.isGuest || !targetUser) {
+                                        // Update as Guest (or fallback to Gueast if user missing)
+                                        const updated = guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: forcedNewStatus as any } : o);
+                                        updateGuestOrders(updated);
+                                        pushToCloud('rb_orders', [{ ...order, status: forcedNewStatus, id: order.orderId }]);
+                                        if (!order.isGuest && !targetUser) alert('⚠️ AVISO: Usuario original no encontrado. Se cerró como venta de invitado.');
+                                    } else {
+                                        // Force Update User
+                                        const updatedUsers = confirmOrderRewards(order.orderId, targetUser.email, registeredUsers);
+                                        updateUsers(updatedUsers);
+                                    }
+                                    triggerSuccessConfetti();
+                                }}
+                                className="w-full py-3 bg-red-900/30 hover:bg-red-800 text-red-200 text-xs font-black uppercase tracking-widest mt-2 border border-red-700/50 rounded flex items-center justify-center gap-2"
                             >
-                                Rechazar
-                            </button>
-
-                            {/* WhatsApp Quick Link */}
-                            {order.customerPhone && (
-                                <button
-                                    onClick={() => {
-                                        let text = '';
-                                        if (order.status === 'delivered') text = `✅ Hola ${order.userName}, ¡Tu pedido fue entregado! ¿Todo bien?`;
-                                        else text = `🛍️ Hola ${order.userName}, recibimos tu pedido en Ray Burger.`;
-
-                                        window.open(`https://wa.me/${order.customerPhone?.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
-                                    }}
-                                    className="flex-1 py-3 bg-green-600/20 text-green-400 hover:bg-green-600/40 border border-green-600/30 rounded-xl transition-colors text-sm font-bold flex items-center justify-center gap-1"
-                                >
-                                    📲 Mensaje
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Direct Bypass for Admin Errors */}
-                        {(!order.status || order.status === 'pending') && (
-                            <button
-                                onClick={() => handleApprove(order.orderId, order.userEmail, !!order.isGuest)}
-                                className="w-full py-2 text-gray-500 hover:text-gray-400 text-[10px] font-bold uppercase tracking-widest"
-                            >
-                                Aprobación Directa (Saltar Pasos)
+                                💀 FORZAR CIERRE (Sin Preguntas)
                             </button>
                         )}
                     </div>
