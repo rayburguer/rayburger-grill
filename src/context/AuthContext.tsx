@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { User } from '../types';
-import { calculateLoyaltyTier } from '../utils/helpers';
+import { calculateLoyaltyTier, normalizePhone } from '../utils/helpers';
 import { debounce, safeLocalStorage } from '../utils/debounce';
 import { hashPassword, isLegacyPassword } from '../utils/security';
 import { useCloudSync } from '../hooks/useCloudSync';
@@ -184,7 +184,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const login = useCallback(async (identifier: string, password: string) => {
         const inputHash = await hashPassword(password);
-        let userIndex = registeredUsers.findIndex(u => (u.email === identifier || u.phone === identifier));
+        const normalizedIdentifier = normalizePhone(identifier);
+        let userIndex = registeredUsers.findIndex(u => (u.email === identifier || normalizePhone(u.phone) === normalizedIdentifier));
 
         if (userIndex === -1) return null;
 
@@ -221,11 +222,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, []);
 
     const register = useCallback(async (newUserInput: User) => {
-        // Normalize phone: remove all non-digits
-        const normalizedPhone = newUserInput.phone.replace(/\D/g, '');
+        // Normalize phone: standard 10 digits
+        const normalizedPhone = normalizePhone(newUserInput.phone);
 
         // Robust Check: Compare against normalized stored phones
-        if (registeredUsers.some(u => u.phone.replace(/\D/g, '') === normalizedPhone || u.email === newUserInput.email)) {
+        if (registeredUsers.some(u => normalizePhone(u.phone) === normalizedPhone || u.email === newUserInput.email)) {
             console.warn("User already exists (Phone/Email match)");
             return false;
         }

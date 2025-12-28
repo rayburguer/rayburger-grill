@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Order, Product } from '../../types';
 // import { useAuth } from '../../hooks/useAuth'; // REMOVED
 import { useLoyalty } from '../../hooks/useLoyalty';
-import { Search } from 'lucide-react';
+import { Search, Trash2 } from 'lucide-react';
 import { triggerSuccessConfetti } from '../../utils/confetti';
+import { useCloudSync } from '../../hooks/useCloudSync';
 
 interface OrderManagementProps {
     registeredUsers: User[];
@@ -19,60 +20,43 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     registeredUsers, updateUsers, guestOrders, updateGuestOrders, highlightOrderId, allProducts, pushToCloud
 }) => {
     const { confirmOrderRewards, rejectOrder } = useLoyalty();
+    const { deleteFromCloud } = useCloudSync();
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState<'pending' | 'received' | 'preparing' | 'shipped' | 'payment_confirmed' | 'approved' | 'rejected' | 'all'>('pending');
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['today', 'yesterday', 'thisWeek', 'older'])); // Default ALL OPEN // Default: only "today" expanded
 
     // EFFECT: Auto-scroll to highlighted order if provided via deep link
-    React.useEffect(() => {
+    useEffect(() => {
         if (highlightOrderId) {
-            setFilter('all');
-            setSearchTerm(highlightOrderId);
-            setTimeout(() => {
-                const element = document.getElementById(`order-${highlightOrderId}`);
-                if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    element.classList.add('ring-2', 'ring-orange-500', 'animate-pulse');
-                }
-            }, 500);
+            const element = document.getElementById(`order-${highlightOrderId}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Optionally, add a temporary highlight
+                element.classList.add('highlight-order');
+                const timer = setTimeout(() => {
+                    element.classList.remove('highlight-order');
+                }, 3000);
+                return () => clearTimeout(timer);
+            }
         }
     }, [highlightOrderId]);
 
-    // ... (rest of filtering logic)
-
-    // Flatten all orders from all users + guest orders into a single list
-    const allOrders = [
-        ...registeredUsers.flatMap(user =>
-            (user.orders || []).map(order => ({ ...order, userEmail: user.email, userName: user.name, isGuest: false }))
-        ),
-        ...guestOrders.map(order => ({ ...order, userEmail: 'Invitado', userName: order.customerName || 'Anónimo', isGuest: true }))
-    ].sort((a, b) => b.timestamp - a.timestamp);
+    const allOrders = [...registeredUsers.flatMap(user => user.orders.map(order => ({ ...order, userName: order.customerName || user.name, userEmail: user.email, isGuest: false }))),
+    ...guestOrders.map(order => ({ ...order, userName: order.customerName || 'Invitado', userEmail: order.customerPhone || 'N/A', isGuest: true }))
+    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()); // Sort by newest first
 
     const filteredOrders = allOrders.filter(order => {
-        const matchesSearch =
+        const matchesSearch = searchTerm === '' ||
             order.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
             order.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
             order.userName.toLowerCase().includes(searchTerm.toLowerCase());
 
-        if (filter === 'all') return matchesSearch;
-        return matchesSearch && (order.status || 'pending') === filter; // Default to pending if undefined
-    });
+        const matchesFilter = filter === 'all'
+            ? order.status !== 'rejected'
+            : order.status === filter;
 
-    const handleApprove = (orderId: string, userEmail: string, isGuest: boolean) => {
-        if (confirm(`¿Aprobar pedido y liberar puntos${isGuest ? '' : ' para ' + userEmail}?`)) {
-            if (isGuest) {
-                const updated = guestOrders.map(o => o.orderId === orderId ? { ...o, status: 'approved' as const } : o);
-                updateGuestOrders(updated);
-                // SYNC guest orders
-                const targetOrder = updated.find(o => o.orderId === orderId);
-                if (targetOrder) pushToCloud('rb_orders', [{ ...targetOrder, id: targetOrder.orderId }]);
-            } else {
-                const updatedUsers = confirmOrderRewards(orderId, userEmail, registeredUsers);
-                updateUsers(updatedUsers);
-                // NOTE: Registered user orders synced via rb_users
-            }
-        }
-    };
+        return matchesSearch && matchesFilter;
+    });
 
     const handleReject = (orderId: string, userEmail: string, isGuest: boolean) => {
         if (confirm(`¿Rechazar pedido de ${userEmail}?`)) {
@@ -86,6 +70,22 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 const updatedUsers = rejectOrder(orderId, userEmail, registeredUsers);
                 updateUsers(updatedUsers);
                 // NOTE: Registered user orders synced via rb_users
+            }
+        }
+    };
+
+    const handleDeleteRecord = async (orderId: string, isGuest: boolean) => {
+        if (confirm(`⚠️ ELIMINAR PERMANENTEMENTE\n\n¿Estás seguro de que deseas eliminar este registro de pedido? Esta acción no se puede deshacer.`)) {
+            if (isGuest) {
+                const updated = guestOrders.filter(o => o.orderId !== orderId);
+                await updateGuestOrders(updated);
+                await deleteFromCloud('rb_orders', orderId);
+            } else {
+                const updatedUsers = registeredUsers.map(u => ({
+                    ...u,
+                    orders: (u.orders || []).filter(o => o.orderId !== orderId)
+                }));
+                await updateUsers(updatedUsers);
             }
         }
     };
@@ -144,7 +144,12 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                             if (orderDate === today) groups.today.push(order);
                             else if (orderDate === yesterday) groups.yesterday.push(order);
                             else if (order.timestamp >= thisWeek) groups.thisWeek.push(order);
-                            else groups.older.push(order);
+                            else {
+                                // HIDE REJECTED FROM OLDER GROUP unless specifically filtered to 'rejected' or 'all' but even in 'all' it's better to keep it clean
+                                // If filter is 'all', let's hide rejected in older to reduce noise as requested
+                                if (filter === 'all' && order.status === 'rejected') return;
+                                groups.older.push(order);
+                            }
                         });
 
                         return (
@@ -277,7 +282,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         const [isProcessing, setIsProcessing] = useState(false);
 
         return (
-            <div id={`order-${order.orderId}`} className="bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-gray-500 transition-colors">
+            <div id={`order-${order.orderId}`} className="relative bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-gray-500 transition-colors">
                 <div className="flex justify-between items-start mb-4">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -302,13 +307,21 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                     <div className="text-right">
                         <p className="text-xl font-bold text-white">${order.totalUsd.toFixed(2)}</p>
                         {!order.isGuest && <p className="text-sm text-orange-400">+{order.pointsEarned} Pts Pendientes</p>}
-                        {order.deliveryMethod && (
-                            <p className="text-xs text-gray-400 mt-1 capitalize">
-                                {order.deliveryMethod === 'delivery' ? `🛵 Delivery ($${order.deliveryFee})` : '🏠 Retiro'}
-                            </p>
-                        )}
                     </div>
                 </div>
+
+                {/* DELETE BUTTON for finalized orders */}
+                {
+                    (order.status === 'approved' || order.status === 'rejected') && (
+                        <button
+                            onClick={() => handleDeleteRecord(order.orderId, order.isGuest)}
+                            className="absolute top-2 right-2 p-1.5 text-gray-600 hover:text-red-500 hover:bg-red-900/10 rounded transition-colors"
+                            title="Eliminar Registro"
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                    )
+                }
 
                 <div className="bg-gray-900/50 p-3 rounded mb-4 text-sm text-gray-300">
                     {order.items.map((item, idx) => {
@@ -337,126 +350,106 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 </div>
 
                 {/* Actions - Simplified 3-Step Workflow */}
-                {order.status !== 'rejected' && order.status !== 'approved' && (
-                    <div className="flex flex-col gap-3 mt-4">
-                        {/* STEP 1: PENDING -> DELIVERED */}
-                        {(!order.status || order.status === 'pending') && (
-                            <button
-                                onClick={() => {
-                                    const newStatus = 'delivered';
-                                    const updated = order.isGuest
-                                        ? guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: newStatus as any } : o)
-                                        : registeredUsers.map(u => u.email === order.userEmail ? { ...u, orders: u.orders.map(o => o.orderId === order.orderId ? { ...o, status: newStatus as any } : o) } : u);
+                {
+                    order.status !== 'rejected' && order.status !== 'approved' && (
+                        <div className="flex flex-col gap-3 mt-4">
+                            {/* STEP 1: PENDING -> DELIVERED */}
+                            {(!order.status || order.status === 'pending') && (
+                                <button
+                                    onClick={() => {
+                                        const newStatus = 'delivered';
+                                        const updated = order.isGuest
+                                            ? guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: newStatus as any } : o)
+                                            : registeredUsers.map(u => u.email === order.userEmail ? { ...u, orders: u.orders.map(o => o.orderId === order.orderId ? { ...o, status: newStatus as any } : o) } : u);
 
-                                    if (order.isGuest) {
-                                        updateGuestOrders(updated as Order[]);
-                                        // SYNC guest orders to rb_orders
-                                        pushToCloud('rb_orders', [{ ...order, status: newStatus, id: order.orderId }]);
-                                    } else {
-                                        updateUsers(updated as User[]);
-                                        // NOTE: Registered user orders are synced via rb_users
-                                    }
-                                }}
-                                className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black text-lg shadow-lg flex items-center justify-center gap-2"
-                            >
-                                🚚 MARCAR ENTREGADO
-                            </button>
-                        )}
+                                        if (order.isGuest) {
+                                            updateGuestOrders(updated as Order[]);
+                                            // SYNC guest orders to rb_orders
+                                            pushToCloud('rb_orders', [{ ...order, status: newStatus, id: order.orderId }]);
+                                        } else {
+                                            updateUsers(updated as User[]);
+                                            // NOTE: Registered user orders are synced via rb_users
+                                        }
+                                    }}
+                                    className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black text-lg shadow-lg flex items-center justify-center gap-2"
+                                >
+                                    🚚 MARCAR ENTREGADO
+                                </button>
+                            )}
 
-                        {/* STEP 2: DELIVERED -> APPROVED (Final & Points) */}
-                        {order.status === 'delivered' && (
-                            <button
-                                onClick={async () => {
-                                    if (!confirm('¿Confirmar pago recibido y otorgar puntos?')) return;
+                            {/* STEP 2: DELIVERED -> APPROVED (Final & Points) */}
+                            {order.status === 'delivered' && (
+                                <button
+                                    onClick={async () => {
+                                        if (!confirm('¿Confirmar pago recibido y otorgar puntos?')) return;
 
-                                    setIsProcessing(true);
-                                    try {
-                                        // Timeout protection: 10 seconds max
-                                        const processWithTimeout = Promise.race([
-                                            (async () => {
-                                                console.log('🔍 DEBUG: Aprobando pedido', { orderId: order.orderId, isGuest: order.isGuest, userEmail: order.userEmail });
+                                        setIsProcessing(true);
+                                        try {
+                                            // Timeout protection: 10 seconds max
+                                            const processWithTimeout = Promise.race([
+                                                (async () => {
+                                                    console.log('🔍 DEBUG: Aprobando pedido', { orderId: order.orderId, isGuest: order.isGuest, userEmail: order.userEmail });
 
-                                                if (order.isGuest) {
-                                                    const updated = guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: 'approved' as const } : o);
-                                                    updateGuestOrders(updated);
-                                                    await pushToCloud('rb_orders', [{ ...order, status: 'approved', id: order.orderId }]);
-                                                    console.log('✅ Guest order approved and synced');
-                                                } else {
-                                                    console.log('🔍 Calling confirmOrderRewards...');
-                                                    const targetUser = registeredUsers.find(u => u.email === order.userEmail);
-                                                    if (!targetUser) {
-                                                        alert(`⛔ ERROR DE DIAGNÓSTICO:\n\nEl usuario "${order.userEmail}" NO se encuentra en la lista local de ${registeredUsers.length} usuarios.\n\nSOLUCIÓN: Recarga la página (F5) para descargar la lista actualizada o revisa la pestaña CLOUD.`);
-                                                        throw new Error('Usuario no encontrado localmente');
+                                                    if (order.isGuest) {
+                                                        const updated = guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: 'approved' as const } : o);
+                                                        updateGuestOrders(updated);
+                                                        await pushToCloud('rb_orders', [{ ...order, status: 'approved', id: order.orderId }]);
+                                                        console.log('✅ Guest order approved and synced');
+                                                    } else {
+                                                        console.log('🔍 Calling confirmOrderRewards...');
+                                                        const targetUser = registeredUsers.find(u => u.email === order.userEmail);
+                                                        if (!targetUser) {
+                                                            alert(`⛔ ERROR DE DIAGNÓSTICO:\n\nEl usuario "${order.userEmail}" NO se encuentra en la lista local de ${registeredUsers.length} usuarios.\n\nSOLUCIÓN: Recarga la página (F5) para descargar la lista actualizada o revisa la pestaña CLOUD.`);
+                                                            throw new Error('Usuario no encontrado localmente');
+                                                        }
+                                                        const updatedUsers = confirmOrderRewards(order.orderId, order.userEmail, registeredUsers);
+                                                        console.log('🔍 Updated users:', updatedUsers.find(u => u.email === order.userEmail)?.orders.find(o => o.orderId === order.orderId));
+                                                        updateUsers(updatedUsers);
+                                                        console.log('✅ Registered user order approved and synced via rb_users');
                                                     }
-                                                    const updatedUsers = confirmOrderRewards(order.orderId, order.userEmail, registeredUsers);
-                                                    console.log('🔍 Updated users:', updatedUsers.find(u => u.email === order.userEmail)?.orders.find(o => o.orderId === order.orderId));
-                                                    updateUsers(updatedUsers);
-                                                    console.log('✅ Registered user order approved and synced via rb_users');
-                                                }
-                                                // CONFETTI CELEBRATION! 🎊
-                                                triggerSuccessConfetti();
-                                                console.log('🎊 Confetti triggered!');
-                                            })(),
-                                            new Promise((_, reject) =>
-                                                setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado')), 10000)
-                                            )
-                                        ]);
+                                                    // CONFETTI CELEBRATION! 🎊
+                                                    triggerSuccessConfetti();
+                                                    console.log('🎊 Confetti triggered!');
+                                                })(),
+                                                new Promise((_, reject) =>
+                                                    setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado')), 10000)
+                                                )
+                                            ]);
 
-                                        await processWithTimeout;
-                                    } catch (error) {
-                                        console.error('❌ Error al aprobar pedido:', error);
-                                        const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
-                                        alert(`⚠️ Error al procesar:\n${errorMsg}\n\nIntenta de nuevo o contacta soporte.`);
-                                    } finally {
-                                        // ALWAYS reset to unblock button
-                                        setIsProcessing(false);
-                                    }
-                                }}
-                                disabled={isProcessing}
-                                className={`w-full py-4 rounded-xl font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] flex items-center justify-center gap-2 transform active:scale-95 transition-all ${isProcessing
-                                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                                    : 'bg-green-600 hover:bg-green-500 text-white'
-                                    }`}
-                            >
-                                {isProcessing ? '⏳ PROCESANDO...' : '✅ PAGO RECIBIDO / CERRAR (NUEVO)'}
-                            </button>
-                        )}
+                                            await processWithTimeout;
+                                        } catch (error) {
+                                            console.error('❌ Error al aprobar pedido:', error);
+                                            const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+                                            alert(`⚠️ Error al procesar:\n${errorMsg}\n\nIntenta de nuevo o contacta soporte.`);
+                                        } finally {
+                                            // ALWAYS reset to unblock button
+                                            setIsProcessing(false);
+                                        }
+                                    }}
+                                    disabled={isProcessing}
+                                    className={`w-full py-4 rounded-xl font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] flex items-center justify-center gap-2 transform active:scale-95 transition-all ${isProcessing
+                                        ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                                        : 'bg-green-600 hover:bg-green-500 text-white'
+                                        }`}
+                                >
+                                    {isProcessing ? '⏳ PROCESANDO...' : '✅ PAGO RECIBIDO / CERRAR (NUEVO)'}
+                                </button>
+                            )}
 
-                        {/* FORCE CLOSE BUTTON - The nuclear option */}
-                        {(!order.status || order.status === 'pending' || order.status === 'delivered') && (
-                            <button
-                                onClick={() => {
-                                    // FORCE APPROVE LOGIC (No Confirm, Auto-fix missing users)
-                                    const forcedNewStatus = 'approved';
-                                    let targetUser = registeredUsers.find(u => u.email === order.userEmail);
-
-                                    // 1. If User Missing, Try to find by Phone
-                                    if (!targetUser && order.customerPhone) {
-                                        targetUser = registeredUsers.find(u => u.phone === order.customerPhone);
-                                    }
-
-                                    if (order.isGuest || !targetUser) {
-                                        // Update as Guest (or fallback to Gueast if user missing)
-                                        const updated = guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: forcedNewStatus as any } : o);
-                                        updateGuestOrders(updated);
-                                        pushToCloud('rb_orders', [{ ...order, status: forcedNewStatus, id: order.orderId }]);
-                                        if (!order.isGuest && !targetUser) alert('⚠️ AVISO: Usuario original no encontrado. Se cerró como venta de invitado.');
-                                    } else {
-                                        // Force Update User
-                                        const updatedUsers = confirmOrderRewards(order.orderId, targetUser.email, registeredUsers);
-                                        updateUsers(updatedUsers);
-                                    }
-                                    triggerSuccessConfetti();
-                                }}
-                                className="w-full py-3 bg-red-900/30 hover:bg-red-800 text-red-200 text-xs font-black uppercase tracking-widest mt-2 border border-red-700/50 rounded flex items-center justify-center gap-2"
-                            >
-                                💀 FORZAR CIERRE (Sin Preguntas)
-                            </button>
-                        )}
-                    </div>
-                )
+                            {/* FORCE CLOSE BUTTON - The nuclear option */}
+                            {/* REJECT BUTTON */}
+                            {(!order.status || order.status === 'pending' || order.status === 'delivered') && (
+                                <button
+                                    onClick={() => handleReject(order.orderId, order.userEmail, order.isGuest)}
+                                    className="w-full py-2 text-gray-400 hover:text-red-400 text-xs font-bold uppercase tracking-widest transition-colors"
+                                >
+                                    Rechazar Pedido
+                                </button>
+                            )}
+                        </div>
+                    )
                 }
-            </div >
+            </div>
         );
     }
 };

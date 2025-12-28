@@ -57,7 +57,13 @@ export const AdminBI: React.FC<AdminBIProps> = ({ orders }) => {
             { name: 'Retiro', value: pickupCount, color: '#6366f1' }
         ];
 
-        return { dailyData, productData, deliveryData, totalSales: validOrders.reduce((acc, o) => acc + (o.totalUsd || 0), 0) };
+        return {
+            dailyData,
+            productData,
+            deliveryData,
+            totalSales: validOrders.reduce((acc, o) => acc + (o.totalUsd || 0), 0),
+            validCount: validOrders.length
+        };
     }, [orders]);
 
     return (
@@ -72,7 +78,7 @@ export const AdminBI: React.FC<AdminBIProps> = ({ orders }) => {
                         </div>
                         <div>
                             <p className="text-gray-400 text-sm">Ventas Totales</p>
-                            <h4 className="text-2xl font-black text-white">$ {orders.reduce((acc, o) => acc + (o.totalUsd || 0), 0).toFixed(2)}</h4>
+                            <h4 className="text-2xl font-black text-white">$ {stats.totalSales.toFixed(2)}</h4>
                         </div>
                     </div>
                 </div>
@@ -83,7 +89,7 @@ export const AdminBI: React.FC<AdminBIProps> = ({ orders }) => {
                         </div>
                         <div>
                             <p className="text-gray-400 text-sm">Pedidos Realizados</p>
-                            <h4 className="text-2xl font-black text-white">{orders.length}</h4>
+                            <h4 className="text-2xl font-black text-white">{stats.validCount}</h4>
                         </div>
                     </div>
                 </div>

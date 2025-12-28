@@ -43,6 +43,20 @@ export const useCloudSync = () => {
         }
     }, []);
 
+    const deleteFromCloud = useCallback(async (table: string, id: string) => {
+        if (!supabase) return { error: 'Supabase client not initialized' };
+        setIsSyncing(true);
+        try {
+            const { error } = await supabase.from(table).delete().eq('id', id);
+            return { error };
+        } catch (err) {
+            console.error(`Delete error for ${table}:`, err);
+            return { error: err };
+        } finally {
+            setIsSyncing(false);
+        }
+    }, []);
+
     const replaceInCloud = useCallback(async (table: string, data: any[]) => {
         if (!supabase) return { error: 'Supabase client not initialized' };
 
@@ -174,6 +188,20 @@ export const useCloudSync = () => {
             results.push(await pushToCloud('rb_settings', [{ id: 'tasa', value: Number(localTasa) }]));
         }
 
+        // 5. Surveys
+        const localSurveys = localStorage.getItem('rayburger_surveys');
+        if (localSurveys) {
+            try {
+                const surveys = JSON.parse(localSurveys);
+                if (surveys.length > 0) {
+                    results.push(await pushToCloud('rb_surveys', surveys));
+                }
+            } catch (e) {
+                console.error("Error parsing surveys for sync:", e);
+                results.push({ error: 'Parse error in surveys' });
+            }
+        }
+
         return results;
     }, [pushToCloud, replaceInCloud]); // ✅ FIXED: Added replaceInCloud dependency
 
@@ -201,21 +229,18 @@ export const useCloudSync = () => {
             const { data: users, error: userError } = await supabase.from('rb_users').select('*');
             if (userError) errors.push(`Users: ${userError.message}`);
             else if (users) {
-                // Get current local users
+                // 2. USERS (with intelligent merge)
                 const currentLocalUsers = JSON.parse(localStorage.getItem('rayburger_registered_users') || '[]');
                 const localUsersMap = new Map(currentLocalUsers.map((u: any) => [u.email, u]));
+                const remoteEmails = new Set(users.map(u => u.email));
 
-                // Merge remote users with local, preserving advanced order statuses
-                const mergedUsers = users.map(remoteUser => {
+                // A. Base: Process all users from Cloud
+                const mergedUsers = users.map((remoteUser: any) => {
                     const { id, ...rest } = remoteUser;
                     const localUser = localUsersMap.get(rest.email);
 
-                    if (!localUser) {
-                        // New user from cloud, just use it
-                        return rest;
-                    }
+                    if (!localUser) return rest;
 
-                    // Merge orders: preserve local status if more advanced
                     const statusPriority: Record<string, number> = {
                         'approved': 3,
                         'delivered': 2,
@@ -223,30 +248,60 @@ export const useCloudSync = () => {
                         'rejected': 0
                     };
 
-                    const remoteOrdersMap = new Map((rest.orders || []).map((o: any) => [o.orderId, o]));
+                    // Intelligently merge orders
+                    const remoteOrders = rest.orders || [];
                     const localOrders = localUser.orders || [];
+                    const remoteOrderIds = new Set(remoteOrders.map((o: any) => o.orderId));
 
-                    const mergedOrders = (rest.orders || []).map((remoteOrder: any) => {
+                    const mergedOrders = remoteOrders.map((remoteOrder: any) => {
                         const localOrder = localOrders.find((lo: any) => lo.orderId === remoteOrder.orderId);
-
                         if (!localOrder) return remoteOrder;
 
-                        // Compare status priority
                         const localPriority = statusPriority[localOrder.status || 'pending'] || 0;
                         const remotePriority = statusPriority[remoteOrder.status || 'pending'] || 0;
 
-                        // If local is more advanced, use local order
                         return localPriority > remotePriority ? localOrder : remoteOrder;
                     });
 
-                    // Add any local orders that don't exist in remote
+                    // Preservation logic for local orders NOT in cloud
+                    // Only resurrect if they are VERY recent (likely not yet synced)
+                    const RECENT_WINDOW_MS = 15 * 60 * 1000;
+                    const now = Date.now();
+
                     localOrders.forEach((localOrder: any) => {
-                        if (!remoteOrdersMap.has(localOrder.orderId)) {
-                            mergedOrders.push(localOrder);
+                        if (!remoteOrderIds.has(localOrder.orderId)) {
+                            const isVeryRecent = (now - localOrder.timestamp) < RECENT_WINDOW_MS;
+                            const isActiveStatus = !['approved', 'rejected', 'delivered'].includes(localOrder.status);
+
+                            if (isVeryRecent || isActiveStatus) {
+                                mergedOrders.push(localOrder);
+                                console.log(`🚀 Reserving recent/active local order: ${localOrder.orderId}`);
+                            } else {
+                                console.log(`🗑️ Ignoring old local order ${localOrder.orderId} (likely deleted in cloud)`);
+                            }
                         }
                     });
 
-                    return { ...rest, orders: mergedOrders };
+                    // Merge other user properties (e.g., points - use higher value for safety/loyalty)
+                    const mergedPoints = Math.max(localUser.points || 0, rest.points || 0);
+
+                    return {
+                        ...rest,
+                        orders: mergedOrders,
+                        points: mergedPoints,
+                        // Preserve local role/password if cloud is missing them
+                        // Improved Role Merge: If either is 'admin', user stays 'admin'
+                        password: rest.password || localUser.password,
+                        role: (rest.role === 'admin' || localUser.role === 'admin') ? 'admin' : (rest.role || localUser.role || 'customer')
+                    };
+                });
+
+                // B. Add Users that exist ONLY locally (e.g., created offline)
+                currentLocalUsers.forEach((localUser: any) => {
+                    if (!remoteEmails.has(localUser.email)) {
+                        console.log(`➕ Adding local-only user: ${localUser.email}`);
+                        mergedUsers.push(localUser);
+                    }
                 });
 
                 localStorage.setItem('rayburger_registered_users', JSON.stringify(mergedUsers));
@@ -271,6 +326,14 @@ export const useCloudSync = () => {
                 });
                 localStorage.setItem('rayburger_guest_orders', JSON.stringify(localOrders));
                 console.log(`✅ Pulled ${orders.length} orders`);
+            }
+
+            // 5. SURVEYS
+            const { data: surveys, error: survError } = await supabase.from('rb_surveys').select('*');
+            if (!survError && surveys) {
+                localStorage.setItem('rayburger_surveys', JSON.stringify(surveys));
+                window.dispatchEvent(new CustomEvent('rayburger_surveys_updated', { detail: { source: 'cloud_pull' } }));
+                console.log(`✅ Pulled ${surveys.length} surveys`);
             }
 
             const now = Date.now();
@@ -347,6 +410,7 @@ export const useCloudSync = () => {
         fetchFromCloud,
         migrateAllToCloud,
         pullFromCloud,
-        wipeCloudData // EXPORT NEW FUNCTION
+        wipeCloudData,
+        deleteFromCloud
     };
 };

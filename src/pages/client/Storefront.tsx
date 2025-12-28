@@ -37,7 +37,7 @@ import { useCloudSync } from '../../hooks/useCloudSync';
 
 // Data & Config
 import { ALL_CATEGORIES_KEY, SKIP_LINK_ID } from '../../config/constants'; // Fix path
-import { generateUuid } from '../../utils/helpers';
+import { generateUuid, normalizePhone } from '../../utils/helpers';
 import '../../index.css';
 import { Product, User, Order } from '../../types'; // Fix path
 import { generateWhatsAppLink } from '../../utils/whatsapp'; // Fix path
@@ -325,7 +325,7 @@ const Storefront: React.FC = () => {
             };
             addGuestOrder(currentOrder);
             const guestUser: User = {
-                name: buyerName || "Invitado", email: buyerEmail || "Sin email", phone: deliveryInfo?.phone || "",
+                name: buyerName || "Invitado", email: buyerEmail || "Sin email", phone: deliveryInfo?.phone ? `+58${normalizePhone(deliveryInfo.phone)}` : "",
                 passwordHash: "", referralCode: "", points: 0, loyaltyTier: "Bronze", role: 'customer', orders: [currentOrder]
             };
             const link = generateWhatsAppLink(currentOrder, guestUser, cart, tasaBs);

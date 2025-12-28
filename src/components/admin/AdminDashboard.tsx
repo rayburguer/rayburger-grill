@@ -18,16 +18,17 @@ import { OrderManagement } from './OrderManagement';
 import { persistence } from '../../utils/persistence';
 import { useShift } from '../../hooks/useShift';
 import { supabase } from '../../lib/supabase'; // Import Supabase client directly
+import { hashPassword } from '../../utils/security';
 
 interface AdminDashboardProps {
     isOpen: boolean;
     onClose: () => void;
     registeredUsers: User[];
-    updateUsers: (users: User[]) => void;
+    updateUsers: (users: User[]) => Promise<void>;
     tasaBs: number;
-    onUpdateTasa: (newTasa: number) => void;
+    onUpdateTasa: (newTasa: number) => Promise<void>;
     guestOrders: Order[];
-    updateGuestOrders: (updatedOrders: Order[]) => void;
+    updateGuestOrders: (updatedOrders: Order[]) => Promise<void>;
     initialOrderId?: string; // For deep linking
     onShowToast: (msg: string) => void;
 }
@@ -39,14 +40,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const { products, addProduct, updateProduct, deleteProduct, resetToSample } = useProducts();
     const { suggestions, deleteSuggestion } = useSuggestions();
     const { isAdmin, loginAdmin, logoutAdmin } = useAdmin();
-    const { getStats } = useSurveys();
-    const { isSyncing, pullFromCloud, wipeCloudData, pushToCloud } = useCloudSync();
+    const { getStats, surveys } = useSurveys();
+    const { isSyncing, pullFromCloud, pushToCloud } = useCloudSync();
     const { localOrders, addLocalOrder, clearShift, exportShiftData, isSatelliteMode, setIsSatelliteMode } = useShift();
     const [password, setPassword] = useState('');
     const [cashierName, setCashierName] = useState(() => localStorage.getItem('rayburger_cashier_name') || ''); // NEW: Persist cashier name
     const [activeTab, setActiveTab] = useState<'quick_pos' | 'stats' | 'marketing' | 'cashregister' | 'products' | 'orders' | 'redeem' | 'customers' | 'suggestions' | 'cloud'>('quick_pos');
     const [redeemSearch, setRedeemSearch] = useState('');
-    const [redeemAmount, setRedeemAmount] = useState<number>(0);
+    const [autoPullOnStart, setAutoPullOnStart] = useState(() => localStorage.getItem('rayburger_autopull_enabled') !== 'false');
+    const [isEditingCustomer, setIsEditingCustomer] = useState(false);
+    const [customerToEdit, setCustomerToEdit] = useState<Partial<User>>({});
+    const [showPasswords, setShowPasswords] = useState(false);
 
     // Deep Link: Auto-navigate based on URL params
     React.useEffect(() => {
@@ -104,13 +108,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     // AUTO-PULL on Mount (Master Mode Only)
     useEffect(() => {
-        if (!isSatelliteMode) {
+        if (!isSatelliteMode && autoPullOnStart) {
             console.log("🔄 Auto-pulling cloud data for Master Terminal...");
             pullFromCloud().then(res => {
                 if (!res.error) console.log("✅ Auto-pull success");
             });
         }
-    }, []); // Run once on mount
+    }, [isSatelliteMode, pullFromCloud, autoPullOnStart]); // Run on mount or when mode changes
 
     // NEW: Handle One-Click Sync for Satellite
     const handleSyncToCloud = async () => {
@@ -404,13 +408,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 title="Cerrar panel y navegar como cliente (sin perder sesión)"
                             >
                                 <UserIcon size={14} /> Ver Tienda
-                            </button>
-                            <button
-                                onClick={resetToSample}
-                                className="ml-2 px-3 py-1.5 bg-red-900/80 hover:bg-red-700 text-red-100 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 border border-red-700 shadow-lg"
-                                title="Borrar menú actual y restaurar el original"
-                            >
-                                <Trash2 size={14} /> Restaurar Menú
                             </button>
                         </div>
                         <button onClick={onClose} className="p-2 bg-gray-700 hover:bg-red-900/50 rounded-full transition-colors text-white"><X size={20} /></button>
@@ -1077,14 +1074,73 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </div>
                                 </div>
                                 <div className="bg-gray-800/50 p-6 rounded-2xl border border-gray-700">
-                                    <h3 className="text-lg font-bold text-white mb-4">Calidad del Servicio</h3>
-                                    <div className="flex items-center gap-6 bg-gray-900 p-4 rounded-xl border border-gray-800">
-                                        <div className="text-4xl font-black text-orange-500">{surveyStats?.averages.foodQuality || 'N/A'}</div>
-                                        <div>
-                                            <p className="text-white font-bold">Puntaje Promedio</p>
-                                            <p className="text-gray-500 text-xs">Basado en encuestas</p>
+                                    <h3 className="text-lg font-bold text-white mb-4 flex items-center justify-between">
+                                        Calidad del Servicio
+                                        <span className="text-xs bg-orange-600/20 text-orange-400 px-2 py-0.5 rounded-full border border-orange-500/20">
+                                            {surveyStats?.totalSurveys || 0} Encuestas
+                                        </span>
+                                    </h3>
+
+                                    {surveyStats ? (
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-6 bg-gray-900 p-4 rounded-xl border border-gray-800">
+                                                <div className="text-4xl font-black text-orange-500">{surveyStats.overall}</div>
+                                                <div>
+                                                    <p className="text-white font-bold">Puntaje General</p>
+                                                    <p className="text-gray-500 text-xs">Basado en todas las categorías</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800">
+                                                    <p className="text-xs text-gray-500 uppercase font-black">Comida</p>
+                                                    <p className="text-xl font-bold text-white">{surveyStats.averages.foodQuality}</p>
+                                                </div>
+                                                <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800">
+                                                    <p className="text-xs text-gray-500 uppercase font-black">Servicio</p>
+                                                    <p className="text-xl font-bold text-white">{surveyStats.averages.service}</p>
+                                                </div>
+                                                <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800">
+                                                    <p className="text-xs text-gray-500 uppercase font-black">Precio</p>
+                                                    <p className="text-xl font-bold text-white">{surveyStats.averages.price}</p>
+                                                </div>
+                                                <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-800">
+                                                    <p className="text-xs text-gray-500 uppercase font-black">Entrega</p>
+                                                    <p className="text-xl font-bold text-white">{surveyStats.averages.deliveryTime}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Recent Reviews List */}
+                                            <div className="mt-6">
+                                                <h4 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3">Reseñas Recientes</h4>
+                                                <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                                                    {(surveys || [])
+                                                        .slice()
+                                                        .sort((a, b) => b.timestamp - a.timestamp)
+                                                        .map((s: any) => (
+                                                            <div key={s.id} className="bg-gray-900 p-3 rounded-xl border border-gray-800 text-sm">
+                                                                <div className="flex justify-between items-start mb-2">
+                                                                    <span className="text-orange-500 font-bold">{s.userId || 'Invitado'}</span>
+                                                                    <span className="text-[10px] text-gray-600">{new Date(s.timestamp).toLocaleDateString()}</span>
+                                                                </div>
+                                                                {s.comments && <p className="text-gray-300 italic mb-2">"{s.comments}"</p>}
+                                                                <div className="flex gap-2 text-[10px] text-gray-500">
+                                                                    <span>C: {s.ratings.foodQuality}</span>
+                                                                    <span>S: {s.ratings.service}</span>
+                                                                    <span>P: {s.ratings.price}</span>
+                                                                    <span>E: {s.ratings.deliveryTime}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
+                                    ) : (
+                                        <div className="text-center py-6 bg-gray-900 rounded-xl border border-gray-800 text-gray-500">
+                                            Aún no hay encuestas suficientes
+                                        </div>
+                                    )}
+
                                     <button onClick={logoutAdmin} className="mt-6 text-xs text-red-500 hover:text-red-400 font-bold uppercase tracking-widest flex items-center gap-2">
                                         <LogOut size={14} /> Cerrar Sesión Admin
                                     </button>
@@ -1171,16 +1227,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </div>
                                 </div>
                                 <div className="flex justify-end gap-3 mt-6">
-                                    <button
-                                        onClick={async () => {
-                                            await resetToSample();
-                                        }}
-                                        disabled={isSyncing}
-                                        className="mr-auto px-4 py-2 border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 rounded text-xs font-bold transition-all flex items-center gap-2 disabled:opacity-50"
-                                    >
-                                        <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
-                                        {isSyncing ? 'Sincronizando...' : 'Cargar Menú Oficial'}
-                                    </button>
                                     {isEditing && <button onClick={() => { setIsEditing(false); setCurrentProduct({}); }} className="text-gray-400 hover:text-white">Cancelar</button>}
                                     <button onClick={handleSaveProduct} className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded font-bold shadow-lg shadow-orange-900/20">
                                         {isEditing ? 'Guardar' : 'Crear'}
@@ -1304,16 +1350,49 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </div>
                                     <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                                         {registeredUsers.map(u => (
-                                            <div key={u.phone} className="bg-gray-900/50 p-3 rounded border border-gray-800 flex justify-between items-center">
-                                                <div>
-                                                    <p className="font-bold text-white text-sm">{u.name}</p>
-                                                    <p className="text-[10px] text-gray-500">{u.phone}</p>
+                                            <div key={u.phone} className="bg-gray-900/50 p-3 rounded border border-gray-800 flex justify-between items-center group">
+                                                <div
+                                                    className="cursor-pointer hover:bg-white/5 p-1 rounded transition-all flex-1"
+                                                    onClick={() => {
+                                                        setCustomerToEdit(u);
+                                                        setIsEditingCustomer(true);
+                                                    }}
+                                                >
+                                                    <p className="font-bold text-white text-sm">
+                                                        {(u.name === 'Cliente' || !u.name) ? <span className="text-orange-500/50 italic">Sin nombre (Tocar para editar)</span> : `${u.name} ${u.lastName || ''}`}
+                                                    </p>
+                                                    <p className="text-[10px] text-gray-500 font-mono">{u.phone}</p>
+                                                    {showPasswords && (
+                                                        <p className="text-[10px] text-orange-400 mt-1">
+                                                            Clave: <span className="bg-orange-900/20 px-1 rounded">{u.passwordHash === '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4' ? '1234' : '••••••'}</span>
+                                                        </p>
+                                                    )}
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-orange-500 font-bold text-sm">{u.points} pts</p>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="text-right mr-2">
+                                                        <p className="text-orange-500 font-bold text-sm">{u.points} pts</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setCustomerToEdit(u);
+                                                            setIsEditingCustomer(true);
+                                                        }}
+                                                        className="p-2 text-orange-500 hover:bg-orange-900/20 rounded transition-all"
+                                                        title="Editar Nombre/Apellido"
+                                                    >
+                                                        <Edit size={16} />
+                                                    </button>
                                                 </div>
                                             </div>
                                         ))}
+                                    </div>
+                                    <div className="mt-4 flex justify-end">
+                                        <button
+                                            onClick={() => setShowPasswords(!showPasswords)}
+                                            className="text-[10px] font-black uppercase text-gray-500 hover:text-orange-500"
+                                        >
+                                            {showPasswords ? 'Ocultar Claves' : 'Ver Claves (Modo Gestión)'}
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -1614,16 +1693,125 @@ Mientras más amigos traigas, más ganas.
                     )}
 
 
-                    {activeTab === 'cloud' && <CloudSyncSection onShowToast={onShowToast} />}
+                    {activeTab === 'cloud' && (
+                        <CloudSyncSection
+                            onShowToast={onShowToast}
+                            registeredUsers={registeredUsers}
+                            updateUsers={updateUsers}
+                            guestOrders={guestOrders}
+                            updateGuestOrders={updateGuestOrders}
+                            allOrders={allOrders}
+                            autoPullOnStart={autoPullOnStart}
+                            setAutoPullOnStart={setAutoPullOnStart}
+                        />
+                    )}
                 </div>
             </div>
+
+            {/* CUSTOMER EDIT MODAL */}
+            {isEditingCustomer && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-gray-800 border border-gray-700 w-full max-w-md rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                <UserIcon size={20} className="text-orange-500" /> Editar Cliente
+                            </h3>
+                            <button onClick={() => setIsEditingCustomer(false)} className="text-gray-500 hover:text-white transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-black text-gray-500 uppercase mb-2 tracking-widest">Nombre</label>
+                                <input
+                                    type="text"
+                                    value={customerToEdit.name || ''}
+                                    onChange={(e) => setCustomerToEdit({ ...customerToEdit, name: e.target.value })}
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-white outline-none focus:border-orange-500 transition-all font-bold"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-black text-gray-500 uppercase mb-2 tracking-widest">Apellido</label>
+                                <input
+                                    type="text"
+                                    value={customerToEdit.lastName || ''}
+                                    onChange={(e) => setCustomerToEdit({ ...customerToEdit, lastName: e.target.value })}
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-white outline-none focus:border-orange-500 transition-all font-bold"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-black text-gray-500 uppercase mb-2 tracking-widest">Teléfono (Solo Lectura)</label>
+                                <input
+                                    type="text"
+                                    value={customerToEdit.phone || ''}
+                                    readOnly
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-gray-500 outline-none font-mono cursor-not-allowed"
+                                />
+                            </div>
+
+                            <div className="pt-4 border-t border-gray-700 flex flex-col gap-3">
+                                <p className="text-[10px] text-gray-500 text-center px-4">
+                                    Si el cliente olvidó su clave, puedes resetearla a <span className="text-orange-500 font-bold">1234</span>
+                                </p>
+                                <button
+                                    onClick={async () => {
+                                        if (confirm(`¿Resetear la clave de ${customerToEdit.name} a "1234"?`)) {
+                                            const hash = await hashPassword('1234');
+                                            setCustomerToEdit({ ...customerToEdit, passwordHash: hash });
+                                            onShowToast('🔑 Clave reseteada a 1234. ¡No olvides guardar!');
+                                        }
+                                    }}
+                                    className="w-full py-2 border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                >
+                                    Resetear Clave a 1234
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-8">
+                            <button
+                                onClick={() => setIsEditingCustomer(false)}
+                                className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition-all"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!customerToEdit.name) {
+                                        onShowToast('❌ El nombre es obligatorio');
+                                        return;
+                                    }
+                                    const updatedUsers = registeredUsers.map(u => u.phone === customerToEdit.phone ? { ...u, ...customerToEdit } : u);
+                                    await updateUsers(updatedUsers);
+                                    setIsEditingCustomer(false);
+                                    onShowToast('✅ Cliente actualizado correctamente');
+                                }}
+                                className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-orange-900/20"
+                            >
+                                Guardar Cambios
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
-const CloudSyncSection: React.FC<{ onShowToast: (msg: string) => void }> = ({ onShowToast }) => {
-    const { isSyncing, lastSync, migrateAllToCloud, pullFromCloud } = useCloudSync();
+const CloudSyncSection: React.FC<{
+    onShowToast: (msg: string) => void,
+    registeredUsers: User[],
+    updateUsers: (users: User[]) => Promise<void>,
+    guestOrders: Order[],
+    updateGuestOrders: (updatedOrders: Order[]) => Promise<void>,
+    allOrders: any[],
+    autoPullOnStart: boolean,
+    setAutoPullOnStart: (val: boolean) => void
+}> = ({ onShowToast, registeredUsers, updateUsers, guestOrders, updateGuestOrders, allOrders, autoPullOnStart, setAutoPullOnStart }) => {
+    const { isSyncing, lastSync, migrateAllToCloud, pullFromCloud, wipeCloudData } = useCloudSync();
     const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [isPurging, setIsPurging] = useState(false);
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -1635,6 +1823,22 @@ const CloudSyncSection: React.FC<{ onShowToast: (msg: string) => void }> = ({ on
                     <div className="bg-gray-900 p-4 rounded-xl border border-gray-700">
                         <p className="text-xs text-gray-500 uppercase font-bold mb-1">Última Sincro</p>
                         <p className="text-white">{lastSync ? new Date(lastSync).toLocaleString() : 'Nunca'}</p>
+                    </div>
+                    <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 flex items-center justify-between">
+                        <div>
+                            <p className="text-xs text-blue-400 uppercase font-bold mb-1">Auto-Puxar al Iniciar</p>
+                            <p className="text-[10px] text-gray-500">¿Descargar de la nube al abrir?</p>
+                        </div>
+                        <button
+                            onClick={() => {
+                                const nextValue = !autoPullOnStart;
+                                setAutoPullOnStart(nextValue);
+                                localStorage.setItem('rayburger_autopull_enabled', String(nextValue));
+                            }}
+                            className={`w-12 h-6 rounded-full transition-all relative ${autoPullOnStart ? 'bg-blue-600' : 'bg-gray-700'}`}
+                        >
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${autoPullOnStart ? 'right-1' : 'left-1'}`} />
+                        </button>
                     </div>
                 </div>
                 <button
@@ -1694,12 +1898,12 @@ const CloudSyncSection: React.FC<{ onShowToast: (msg: string) => void }> = ({ on
                 <div className="mt-8 p-6 bg-red-900/10 border border-red-500/20 rounded-2xl">
                     <h4 className="text-red-500 font-bold mb-4 flex items-center gap-2">⚙️ Mantenimiento de Datos</h4>
                     <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-                        Esta herramienta permite limpiar el historial de pruebas. Eliminará todos los pedidos realizados <b className="text-white">antes del 26 de diciembre</b>. Los puntos actuales de los clientes NO se verán afectados.
+                        Esta herramienta permite limpiar el historial de pruebas. Eliminará todos los pedidos realizados <b className="text-white">antes del 25 de diciembre</b>. Los puntos actuales de los clientes NO se verán afectados.
                     </p>
                     <button
                         onClick={async () => {
-                            // FIX: Safe Purge - Keep data from Dec 26th onwards
-                            const purgeDate = new Date('2025-12-26T00:00:00').getTime();
+                            // FIX: Safe Purge - Keep data from Dec 25th onwards
+                            const purgeDate = new Date('2025-12-25T00:00:00').getTime();
                             const ordersToPurge = allOrders.filter(o => o.timestamp < purgeDate).length;
 
                             if (ordersToPurge === 0) {
@@ -1707,42 +1911,67 @@ const CloudSyncSection: React.FC<{ onShowToast: (msg: string) => void }> = ({ on
                                 return;
                             }
 
-                            const confirmed = confirm(`⚠️ MANTENIMIENTO: Se eliminarán ${ordersToPurge} pedidos ANTERIORES al 26 de Diciembre.\n\nTus ventas de AYER (26) y HOY (27) se mantendrán intactas.\n¿Proceder con la limpieza?`);
+                            const confirmed = confirm(`⚠️ MANTENIMIENTO: Se eliminarán ${ordersToPurge} pedidos ANTERIORES al 25 de Diciembre.\n\nTus ventas desde esa fecha se mantendrán intactas.\n¿Proceder con la limpieza?`);
 
                             if (confirmed) {
-                                // 0. WIPE CLOUD (Partial)
-                                onShowToast('⏳ Limpiando Nube (Datos Antiguos)...');
-                                const { error: cloudError } = await wipeCloudData(purgeDate);
-                                if (cloudError) {
-                                    alert('Error limpiando nube: ' + cloudError);
+                                setIsPurging(true);
+                                try {
+                                    await wipeCloudData(purgeDate);
+
+                                    // Also wipe locally
+                                    const updatedLocalOrders = guestOrders.filter(o => o.timestamp >= purgeDate);
+                                    await updateGuestOrders(updatedLocalOrders);
+
+                                    // Local Users maintenance (strip old orders if needed - optional but for safety let's leave as is)
+                                    const updatedUsers = registeredUsers.map(u => ({
+                                        ...u,
+                                        orders: (u.orders || []).filter(o => o.timestamp >= purgeDate)
+                                    }));
+                                    await updateUsers(updatedUsers);
+
+                                    onShowToast('🧹 Limpieza completada con éxito');
+                                    setIsPurging(false);
+
+                                    // Reset counters for refresh
+                                    setTimeout(() => window.location.reload(), 1500);
+                                } catch (err) {
+                                    console.error(err);
+                                    onShowToast('❌ Error durante la limpieza');
+                                    setIsPurging(false);
                                 }
-
-                                // 1. Purge Guest Orders
-                                const cleanGuestOrders = guestOrders.filter(o => o.timestamp >= purgeDate);
-                                updateGuestOrders(cleanGuestOrders);
-
-                                // 2. Purge Registered User Orders
-                                const cleanUsers = registeredUsers.map(u => ({
-                                    ...u,
-                                    orders: (u.orders || []).filter(o => o.timestamp >= purgeDate)
-                                }));
-                                updateUsers(cleanUsers);
-
-                                onShowToast(`✅ Mantenimiento Completado: Datos antiguos eliminados.`);
-
-                                // Reset counters for refresh
-                                setTimeout(() => window.location.reload(), 1500);
                             }
                         }}
-                        className="w-full sm:w-auto px-6 py-3 bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/30 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm"
+                        disabled={isPurging}
+                        className="w-full sm:w-auto px-6 py-3 bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/30 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50"
                     >
-                        <Trash2 size={16} /> Limpiar Datos PREVIOS al 26 Dic
+                        {isPurging ? <RefreshCw className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                        {isPurging ? 'Limpiando...' : 'Limpiar Datos PREVIOS al 25 Dic'}
                     </button>
+                </div>
+
+                {/* ZONA DE PELIGRO - GESTIÓN DE MENÚ */}
+                <div className="mt-12 p-6 bg-red-600/5 border border-red-500/10 rounded-2xl">
+                    <h4 className="text-red-500/50 font-black text-[10px] uppercase tracking-widest mb-4 flex items-center gap-2">⚠️ Zona de Peligro (Gestión Crítica)</h4>
+                    <p className="text-xs text-gray-500 mb-6">Estas opciones sobrescriben datos del menú. Úsalas solo bajo recomendación técnica.</p>
+                    <div className="flex flex-wrap gap-4">
+                        <button
+                            onClick={async () => {
+                                if (confirm('🚨 ¡CUIDADO! 🚨\n\n¿Estás SEGURO de que deseas RESTAURAR EL MENÚ?\n\nEsto borrará todos los productos que hayas creado y restaurará la lista de ejemplo original. No se puede deshacer.')) {
+                                    if (confirm('Última advertencia:\n¿Realmente deseas borrar tus productos actuales y cargar el menú de ejemplo?')) {
+                                        await resetToSample();
+                                        onShowToast('🔄 Menú restaurado a valores de ejemplo');
+                                    }
+                                }
+                            }}
+                            className="px-4 py-2 border border-red-500/20 text-red-500/40 hover:text-white hover:bg-red-600 rounded-lg text-xs font-bold transition-all"
+                        >
+                            Reiniciar Menú a Fábrica
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
-
 
 export default AdminDashboard;

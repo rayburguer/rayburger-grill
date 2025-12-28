@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Product, User } from '../../types';
 import { Plus, Minus, Trash2, ShoppingBag, Banknote, Smartphone, CreditCard, X as XIcon } from 'lucide-react';
 import { POSProductCustomizer } from './POSProductCustomizer';
+import { normalizePhone } from '../../utils/helpers';
 
 interface POSCartItem {
     product: Product;
@@ -123,14 +124,11 @@ export const QuickPOS: React.FC<QuickPOSProps> = ({ products, tasaBs, cashierNam
                 deliveryFee: deliveryMethod === 'delivery' ? deliveryFee : 0,
                 customerName: (() => {
                     if (!customerPhone) return 'Cliente en Local';
-                    const cleanInput = customerPhone.replace(/\D/g, '');
-                    const user = registeredUsers.find(u => {
-                        const uPhone = u.phone.replace(/\D/g, '');
-                        return uPhone === cleanInput || uPhone.endsWith(cleanInput) || cleanInput.endsWith(uPhone);
-                    });
-                    return user ? user.name : 'Cliente Registrado';
+                    const cleanInput = normalizePhone(customerPhone);
+                    const user = registeredUsers.find(u => normalizePhone(u.phone) === cleanInput);
+                    return user ? user.name : `Cliente (${customerPhone})`;
                 })(),
-                customerPhone: customerPhone ? (customerPhone.startsWith('0') ? `+58${customerPhone.substring(1)}` : customerPhone) : undefined,
+                customerPhone: customerPhone ? (customerPhone.startsWith('0') && customerPhone.length === 11 ? `+58${customerPhone.substring(1)}` : (customerPhone.startsWith('+') ? customerPhone : `+58${customerPhone}`)) : undefined,
                 status: 'pending',
                 processedBy: cashierName,
                 pointsEarned: Math.floor(cartTotalUsd)
