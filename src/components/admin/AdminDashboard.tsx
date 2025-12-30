@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { WELCOME_BONUS_USD } from '../../config/constants';
 import { User, Order, Product } from '../../types';
 import { useProducts } from '../../hooks/useProducts';
 import { useAdmin } from '../../hooks/useAdmin';
@@ -942,7 +944,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 name: name || "Cliente",
                                                 lastName: lastName || undefined,
                                                 birthDate: birthDate || undefined,
-                                                walletBalance_usd: 2, // Welcome Bonus $2
+                                                walletBalance_usd: WELCOME_BONUS_USD,
                                                 lifetimeSpending_usd: 0,
                                                 referralCode: 'POS-' + Date.now(),
                                                 role: 'customer',
@@ -951,7 +953,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 passwordHash: '1234',
                                                 registrationDate: Date.now(),
                                                 registeredVia: 'pos',
-                                                points: 0
+                                                points: 50
                                             };
                                             updateUsers([...registeredUsers, newUser]);
                                             e.target.reset();

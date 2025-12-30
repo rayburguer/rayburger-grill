@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import Modal from '../ui/Modal';
 import { User } from '../../types';
 import { calculateLoyaltyTier, normalizePhone, getDeviceFingerprint } from '../../utils/helpers';
+import { WELCOME_BONUS_USD } from '../../config/constants';
 
 interface RegisterModalProps {
     isOpen: boolean;
@@ -118,9 +119,9 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
             passwordHash: password,
             referralCode: newReferralCode,
             referredByCode: referrerCode || undefined,
-            points: 0,
+            points: 50,
             loyaltyTier: calculateLoyaltyTier(0),
-            walletBalance_usd: 0,
+            walletBalance_usd: WELCOME_BONUS_USD,
             lifetimeSpending_usd: 0,
             orders: [],
             birthDate: birthDate || undefined,
