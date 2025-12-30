@@ -75,6 +75,7 @@ export interface User {
   lastRewardsUpdate?: number;
   lastPointsUpdate?: number;
   lastSpinDate?: number;
+  lastSurveyDate?: number;
   role: 'admin' | 'customer';
   nextPurchaseMultiplier?: number;
   birthDate?: string;

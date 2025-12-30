@@ -38,7 +38,24 @@ export const useLoyalty = () => {
         if (!buyer) return null;
 
         const tierAtPurchase = buyer.loyaltyTier || 'Bronze';
-        const multiplier = buyer.nextPurchaseMultiplier || 1;
+
+        // FUNDADOR CHECK: 3x Multiplier
+        // User said "30 days". We check if code is FUNDADOR and if registration < 30 days?
+        // OR we check if nextPurchaseMultiplier is set.
+        // Current logic uses nextPurchaseMultiplier which is one-time.
+        // Let's keep one-time but fix the expiry if needed? 
+        // User asked: "el bono fundador revisa".
+        // If we want 30 days, we should check registration date + code.
+
+        let multiplier = buyer.nextPurchaseMultiplier || 1;
+
+        if (buyer.referredByCode === 'FUNDADOR') {
+            const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+            const now = Date.now();
+            if (buyer.registrationDate && (now - buyer.registrationDate < thirtyDays)) {
+                multiplier = 3; // Force 3x if within 30 days
+            }
+        }
 
         // Las recompensas se calculan sobre el total pagado (restando el balance usado si aplica)
         // O mejor: sobre el subtotal de productos para incentivar compra.
@@ -132,26 +149,35 @@ export const useLoyalty = () => {
                 };
             }
 
-            // Referrer Bonus (Only on first approved purchase)
+
+            // Referrer Bonus (LIFETIME: 2% of every approved purchase)
+            // But check if Referrer is active or if there are limits? User said "De por vida".
+            // Also user mentioned "30 días vence". This might mean the *points* expire or something else, 
+            // but for now we implement LIFETIME 2%.
+
             if (buyer.referredByCode && u.referralCode === buyer.referredByCode && u.role !== 'admin') {
+                // REMOVED CHECK for previouslyApproved.length === 0 to make it LIFETIME
+
+                const referrerReward = order.totalUsd * REFERRAL_REWARD_RATE;
+                const newStats = { ...(u.referralStats || { totalReferred: 0, referredThisMonth: 0, referredToday: 0 }) };
+
+                // Only increment stats on first purchase to avoid inflating "Referred Users" count
                 const previouslyApproved = buyer.orders.filter(o => o.orderId !== orderId && o.status === 'approved');
                 if (previouslyApproved.length === 0) {
-                    const referrerReward = order.totalUsd * REFERRAL_REWARD_RATE;
-                    const newStats = { ...(u.referralStats || { totalReferred: 0, referredThisMonth: 0, referredToday: 0 }) };
                     newStats.totalReferred += 1;
+                }
 
-                    // VIRAL AMBASSADOR LOGIC:
-                    // Add referral spend to Referrer's Lifetime Spending to help them level up!
-                    const newLifetimeSpend = (u.lifetimeSpending_usd || 0) + order.totalUsd;
-                    const newTier = calculateLoyaltyTier(newLifetimeSpend);
+                // VIRAL AMBASSADOR LOGIC:
+                // Add referral spend to Referrer's Lifetime Spending to help them level up!
+                const newLifetimeSpend = (u.lifetimeSpending_usd || 0) + order.totalUsd;
+                const newTier = calculateLoyaltyTier(newLifetimeSpend);
 
-                    return {
-                        ...u,
-                        walletBalance_usd: u.walletBalance_usd + referrerReward,
-                        lifetimeSpending_usd: newLifetimeSpend,
-                        loyaltyTier: newTier, // UPGRADE TIER IF APPLICABLE
-                        referralStats: newStats
-                    }
+                return {
+                    ...u,
+                    walletBalance_usd: u.walletBalance_usd + referrerReward,
+                    lifetimeSpending_usd: newLifetimeSpend,
+                    loyaltyTier: newTier, // UPGRADE TIER IF APPLICABLE
+                    referralStats: newStats
                 }
             }
 

@@ -406,7 +406,17 @@ const Storefront: React.FC = () => {
             localStorage.setItem('rayburger_active_order', JSON.stringify(currentOrder));
         }
         setLastOrderId('recent-order');
-        setTimeout(() => setIsSurveyModalOpen(true), 1500);
+
+        // Show survey only if enough time passed since last survey (e.g. 7 days to not annoy, but reward is 30 days)
+        if (currentUser) {
+            const lastSurvey = currentUser.lastSurveyDate || 0;
+            if (Date.now() - lastSurvey > 7 * 24 * 60 * 60 * 1000) {
+                setTimeout(() => setIsSurveyModalOpen(true), 1500);
+            }
+        } else {
+            // Guest always sees it
+            setTimeout(() => setIsSurveyModalOpen(true), 1500);
+        }
     }, [cart, totalUsd, registeredUsers, updateUsers, clearCart, closeCheckout, showToast, processOrderRewards, addGuestOrder, register, currentUser]);
 
     useEffect(() => {
@@ -417,15 +427,23 @@ const Storefront: React.FC = () => {
     const handleSurveySubmit = useCallback((survey: any) => {
         addSurvey(survey);
 
-        // Award 20 points for completing the survey
+        // Award 20 points ($0.20) for completing the survey (ONCE EVERY 30 DAYS)
         if (currentUser && survey.userId) {
-            const updatedUsers = registeredUsers.map(u =>
-                u.email === currentUser.email
-                    ? { ...u, walletBalance_usd: (u.walletBalance_usd || 0) + 0.20 }
-                    : u
-            );
-            updateUsers(updatedUsers);
-            showToast("¡Gracias por tu opinión! +$0.20 en tu Billetera 🎁");
+            const lastSurvey = currentUser.lastSurveyDate || 0;
+            const now = Date.now();
+            const cooldown = 30 * 24 * 60 * 60 * 1000;
+
+            if (now - lastSurvey > cooldown) {
+                const updatedUsers = registeredUsers.map(u =>
+                    u.email === currentUser.email
+                        ? { ...u, walletBalance_usd: (u.walletBalance_usd || 0) + 0.20, lastSurveyDate: now }
+                        : u
+                );
+                updateUsers(updatedUsers);
+                showToast("¡Gracias por tu opinión! +$0.20 en tu Billetera 🎁");
+            } else {
+                showToast("¡Gracias por tu opinión! (Ya recibiste tu bono este mes)");
+            }
         } else {
             showToast("¡Gracias por tu opinión!");
         }
