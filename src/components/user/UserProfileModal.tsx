@@ -4,8 +4,7 @@ import { UserCircle, ClipboardCopy, MessageSquare, RefreshCw } from 'lucide-reac
 import Modal from '../ui/Modal';
 import { User, Order } from '../../types';
 import QRCodeDisplay from '../loyalty/QRCodeDisplay';
-import RewardsProgressBar from '../loyalty/RewardsProgressBar';
-import { POINTS_VALUE_IN_USD } from '../../config/constants';
+import TierProgressBar from '../loyalty/TierProgressBar';
 
 interface UserProfileModalProps {
     isOpen: boolean;
@@ -34,10 +33,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
 
     // Move other hooks here if any
 
-    // Calculate Pending Points (Safe, just JS logic)
-    const pendingPoints = user?.orders
-        .filter(o => o.status === 'pending' || !o.status)
-        .reduce((sum, o) => sum + (o.pointsEarned || 0), 0) || 0;
+    // Calculate Pending Rewards (Safe, just JS logic)
+    const pendingRewards = user?.orders
+        .filter(o => o.status === 'pending')
+        .reduce((sum, o) => sum + (o.rewardsEarned_usd || 0), 0) || 0;
 
     // Get last approved order for reorder
     const lastApprovedOrder = user?.orders
@@ -99,28 +98,26 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                 <div className="pt-2 border-t border-gray-700 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-gray-800/50 p-4 rounded-lg">
                         <p className="text-sm text-gray-400 mb-1">Nivel Actual</p>
-                        <p className="text-2xl font-bold text-orange-400">{user.loyaltyTier}</p>
+                        <p className={`text-2xl font-bold ${user.loyaltyTier === 'Gold' ? 'text-yellow-400' : user.loyaltyTier === 'Silver' ? 'text-gray-300' : 'text-orange-500'}`}>
+                            {user.loyaltyTier}
+                        </p>
+                        <p className="text-xs text-gray-500">Gasto Total: ${user.lifetimeSpending_usd?.toFixed(2) || '0.00'}</p>
                     </div>
                     <div className="bg-gradient-to-br from-green-900/30 to-green-800/30 p-4 rounded-lg border border-green-700/50">
-                        <p className="text-sm text-gray-400 mb-1">💰 Saldo Referidos</p>
-                        <p className="text-2xl font-bold text-green-400">${(user.cashbackBalance_usd || 0).toFixed(2)}</p>
-                        <p className="text-xs text-gray-500">Por traer amigos</p>
-                    </div>
-                    <div className="bg-gray-800/50 p-4 rounded-lg">
-                        <p className="text-sm text-gray-400 mb-1">🎯 Puntos Disponibles</p>
-                        <p className="text-2xl font-bold text-white">{user.points}</p>
-                        <p className="text-xs text-orange-400">= ${(user.points * POINTS_VALUE_IN_USD).toFixed(2)} valor</p>
+                        <p className="text-sm text-gray-400 mb-1">💰 Billetera Ray ($)</p>
+                        <p className="text-3xl font-black text-green-400">${(user.walletBalance_usd || 0).toFixed(2)}</p>
+                        <p className="text-xs text-gray-500">Saldo disponible para compras</p>
                     </div>
                     <div className="bg-gray-800/50 p-4 rounded-lg border border-yellow-700/30 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-1 bg-yellow-500/20 text-yellow-500 text-xs font-bold rounded-bl-lg">PENDIENTES</div>
-                        <p className="text-sm text-gray-400 mb-1">Por Liberar</p>
-                        <p className="text-2xl font-bold text-yellow-500">+{pendingPoints}</p>
+                        <div className="absolute top-0 right-0 p-1 bg-yellow-500/20 text-yellow-500 text-[10px] font-black uppercase rounded-bl-lg">En Proceso</div>
+                        <p className="text-sm text-gray-400 mb-1">Rewards Pendientes</p>
+                        <p className="text-2xl font-bold text-yellow-500">+${pendingRewards.toFixed(2)}</p>
                     </div>
                 </div>
 
-                {/* Rewards Progress */}
+                {/* Tier Progress */}
                 <div className="mt-4">
-                    <RewardsProgressBar currentPoints={user.points} />
+                    <TierProgressBar lifetimeSpending={user.lifetimeSpending_usd || 0} />
                 </div>
 
                 <div className="bg-gray-700 p-4 rounded-md border border-gray-600 flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -173,7 +170,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                 </div>
 
                 <p className="text-sm text-gray-400 text-center mt-2">
-                    ¡Tus amigos ganan <span className="text-green-400 font-bold">50 pts + Doble Puntos</span> y tú sigues sumando!
+                    ¡Invita amigos y gana recompensas directas en tu Billetera! 🤩
                 </p>
 
                 {/* NUEVO: Reordenar Último Pedido */}
@@ -226,7 +223,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                                             </td>
                                             <td className="px-4 py-2 whitespace-nowrap text-sm">
                                                 <div className="text-orange-400 font-semibold">${order.totalUsd.toFixed(2)}</div>
-                                                <div className="text-green-500/80 text-xs">+{order.pointsEarned} pts</div>
+                                                <div className="text-green-500/80 text-xs">+{order.rewardsEarned_usd?.toFixed(2)} Ray</div>
                                             </td>
                                             <td className="px-4 py-2 whitespace-nowrap text-sm">
                                                 <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${order.status === 'approved' ? 'bg-green-900 text-green-400' :

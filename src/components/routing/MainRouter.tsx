@@ -8,7 +8,7 @@ import { useSettings } from '../../hooks/useSettings';
 import Toast from '../ui/Toast';
 const MainRouter: React.FC = () => {
     const navigate = useNavigate();
-    const { currentUser, registeredUsers, updateUsers } = useAuth();
+    const { registeredUsers, updateUsers } = useAuth();
     const { tasaBs, updateTasa, guestOrders, updateGuestOrders } = useSettings();
     const [isToastVisible, setIsToastVisible] = useState(false);
     const [toastMessage, setToastMessage] = useState('');

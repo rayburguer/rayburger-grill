@@ -1,24 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { User, Order, Product } from '../../types';
 import { useProducts } from '../../hooks/useProducts';
 import { useAdmin } from '../../hooks/useAdmin';
 import { useSurveys } from '../../hooks/useSurveys';
 import {
     Plus, Edit, Trash2, X, BarChart3, Clock,
-    Download, Upload, Search, Gift, Cloud, RefreshCw,
-    CheckCircle2, LogOut, Lightbulb, DollarSign, User as UserIcon,
-    TrendingUp
+    Download, Search, RefreshCw, Upload, LogOut,
+    Lightbulb, DollarSign, User as UserIcon,
+    TrendingUp, ShoppingBag, Users
 } from 'lucide-react';
 import { useCloudSync } from '../../hooks/useCloudSync';
 import { useSuggestions } from '../../hooks/useSuggestions';
-import { QuickPOS } from './QuickPOS';
+// import { QuickPOS } from './QuickPOS'; // REMOVED redundancy
 import { AdminBI } from './AdminBI';
 import { CashRegisterReport } from './CashRegisterReport';
 import { OrderManagement } from './OrderManagement';
 import { persistence } from '../../utils/persistence';
 import { useShift } from '../../hooks/useShift';
-import { supabase } from '../../lib/supabase'; // Import Supabase client directly
+// import { supabase } from '../../lib/supabase'; // Unused after cleanup
 import { hashPassword } from '../../utils/security';
+import { normalizePhone } from '../../utils/helpers';
 
 interface AdminDashboardProps {
     isOpen: boolean;
@@ -37,17 +38,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     isOpen, onClose, registeredUsers, updateUsers,
     tasaBs, onUpdateTasa, guestOrders, updateGuestOrders, initialOrderId, onShowToast
 }) => {
-    const { products, addProduct, updateProduct, deleteProduct, resetToSample } = useProducts();
+    const { products, addProduct, updateProduct, deleteProduct } = useProducts();
     const { suggestions, deleteSuggestion } = useSuggestions();
     const { isAdmin, loginAdmin, logoutAdmin } = useAdmin();
     const { getStats, surveys } = useSurveys();
-    const { isSyncing, pullFromCloud, pushToCloud } = useCloudSync();
-    const { localOrders, addLocalOrder, clearShift, exportShiftData, isSatelliteMode, setIsSatelliteMode } = useShift();
+    const { isSyncing, mergeDuplicates } = useCloudSync();
+    const { localOrders, clearShift, exportShiftData } = useShift();
+    void localOrders, clearShift, exportShiftData; // Tag as used if intended for later or just remove if not needed.
+    // Actually, looking at the error TS6198: All destructured elements are unused.
+    // I'll just remove the destructuring if they are truly unused.
     const [password, setPassword] = useState('');
     const [cashierName, setCashierName] = useState(() => localStorage.getItem('rayburger_cashier_name') || ''); // NEW: Persist cashier name
-    const [activeTab, setActiveTab] = useState<'quick_pos' | 'stats' | 'marketing' | 'cashregister' | 'products' | 'orders' | 'redeem' | 'customers' | 'suggestions' | 'cloud'>('quick_pos');
-    const [redeemSearch, setRedeemSearch] = useState('');
-    const [autoPullOnStart, setAutoPullOnStart] = useState(() => localStorage.getItem('rayburger_autopull_enabled') !== 'false');
+    const [activeTab, setActiveTab] = useState<'quick_pos' | 'stats' | 'marketing' | 'cashregister' | 'products' | 'orders' | 'customers' | 'suggestions'>('quick_pos');
+    // const [redeemSearch, setRedeemSearch] = useState(''); // Unused
+    // const [autoPullOnStart, setAutoPullOnStart] = useState(() => localStorage.getItem('rayburger_autopull_enabled') !== 'false'); // Unused
     const [isEditingCustomer, setIsEditingCustomer] = useState(false);
     const [customerToEdit, setCustomerToEdit] = useState<Partial<User>>({});
     const [showPasswords, setShowPasswords] = useState(false);
@@ -104,170 +108,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const surveyStats = getStats();
     const [isEditing, setIsEditing] = useState(false);
     const [currentProduct, setCurrentProduct] = useState<Partial<Product>>({});
-    const [isUploadingCloud, setIsUploadingCloud] = useState(false); // NEW State
+    // Unused states removed
 
-    // AUTO-PULL on Mount (Master Mode Only)
-    useEffect(() => {
-        if (!isSatelliteMode && autoPullOnStart) {
-            console.log("🔄 Auto-pulling cloud data for Master Terminal...");
-            pullFromCloud().then(res => {
-                if (!res.error) console.log("✅ Auto-pull success");
-            });
-        }
-    }, [isSatelliteMode, pullFromCloud, autoPullOnStart]); // Run on mount or when mode changes
+    // AUTO-PULL REMOVED (Satellite feature)
 
-    // NEW: Handle One-Click Sync for Satellite
-    const handleSyncToCloud = async () => {
-        if (localOrders.length === 0 && registeredUsers.length === 0) return onShowToast('⚠️ No hay datos locales para subir');
-        if (!confirm('¿Subir ventas y clientes locales a la nube principal?')) return;
-
-        setIsUploadingCloud(true);
-        let syncedCount = 0;
-        let syncedUsersCount = 0;
-
-        try {
-            // 1. Get ALL current users to prevent overwrites (Fresh Fetch)
-            const { data: remoteUsers, error: usersError } = await supabase.from('rb_users').select('*');
-            if (usersError) throw new Error('Error conectando con base de datos de usuarios');
-
-            // Map for quick lookup
-            const userMap = new Map((remoteUsers || []).map(u => [u.phone, u]));
-
-            // 2. Prepare patches
-            const newGuestOrders: any[] = [];
-            const userUpdates = new Map<string, User>(); // phone -> UpdatedUser
-
-            // 2a. Sync LOCALLY REGISTERED USERS (Even if they have no orders)
-            // This fixes "ni siquiera aparecen los cliente que registre"
-            for (const localUser of registeredUsers) {
-                const remoteUser = userMap.get(localUser.phone);
-
-                // Logic: If local user has MORE points or MORE orders than remote, assume local is newer
-                // OR if remote doesn't exist.
-                if (!remoteUser) {
-                    userUpdates.set(localUser.phone, localUser);
-                    syncedUsersCount++;
-                } else {
-                    // Start with remote state
-                    let mergedUser = { ...remoteUser };
-                    let changed = false;
-
-                    // Merge Orders (avoid duplicates, UPDATE status if local is newer)
-                    const remoteOrdersMap = new Map((mergedUser.orders || []).map((o: any) => [o.orderId, o]));
-                    const localUserOrders = localUser.orders || [];
-
-                    for (const localOrder of localUserOrders) {
-                        const remoteOrder = remoteOrdersMap.get(localOrder.orderId);
-
-                        if (!remoteOrder) {
-                            // New order: add it
-                            mergedUser.orders = [...(mergedUser.orders || []), localOrder];
-                            mergedUser.points = (mergedUser.points || 0) + (localOrder.pointsEarned || 0);
-                            changed = true;
-                        } else if (remoteOrder.status !== localOrder.status) {
-                            // Order exists but status changed: update it
-                            // Priority: approved > delivered > pending
-                            const statusPriority: Record<string, number> = {
-                                'approved': 3,
-                                'delivered': 2,
-                                'pending': 1,
-                                'rejected': 0
-                            };
-
-                            const localPriority = statusPriority[localOrder.status || 'pending'] || 0;
-                            const remotePriority = statusPriority[remoteOrder.status || 'pending'] || 0;
-
-                            if (localPriority > remotePriority) {
-                                // Local is more advanced, update remote
-                                mergedUser.orders = (mergedUser.orders || []).map((o: any) =>
-                                    o.orderId === localOrder.orderId ? localOrder : o
-                                );
-                                changed = true;
-                            }
-                        }
-                    }
-
-                    if (changed) {
-                        userUpdates.set(localUser.phone, mergedUser);
-                        syncedUsersCount++;
-                    }
-                }
-            }
-
-            // 2b. Sync LOCAL ORDERS (Anonymous & Registered)
-            for (const order of localOrders) {
-                if (order.customerPhone) {
-                    // It's a REGISTERED USER order
-                    // We likely already handled this in 2a, but let's double check 
-                    // if the order is in `localOrders` but somehow not in `registeredUsers` (rare edge case)
-                    let user = userUpdates.get(order.customerPhone) || userMap.get(order.customerPhone);
-
-                    if (!user) {
-                        // Creating NEW user from Satellite Order
-                        user = {
-                            email: `${order.customerPhone}@pos.ray`,
-                            phone: order.customerPhone,
-                            name: order.customerName || 'Cliente Satélite',
-                            role: 'customer',
-                            loyaltyTier: 'Bronze',
-                            points: 0, // NO Welcome Bonus for sync/recovery to avoid accidents
-                            orders: [],
-                            passwordHash: '1234',
-                            referralCode: `POS-SAT-${Date.now()}-${Math.random().toString(36).substring(7)}`
-                        } as User;
-                    }
-
-                    // Check if order already exists in user history
-                    const orderExists = user.orders?.some((o: any) => o.orderId === order.orderId);
-                    if (!orderExists) {
-                        const points = order.pointsEarned || 0;
-                        user = {
-                            ...user,
-                            points: (user.points || 0) + points,
-                            orders: [...(user.orders || []), order]
-                        };
-                        userUpdates.set(order.customerPhone, user);
-                        syncedCount++;
-                    }
-
-                } else {
-                    // Anonymous Order -> Add to rb_orders
-                    newGuestOrders.push({
-                        ...order,
-                        id: order.orderId // Map back for Supabase
-                    });
-                    syncedCount++;
-                }
-            }
-
-            // 3. EXECUTE BATCH UPDATES
-            // 3a. Update Users
-            if (userUpdates.size > 0) {
-                const usersToPush = Array.from(userUpdates.values());
-                const { error: pushError } = await supabase.from('rb_users').upsert(usersToPush, { onConflict: 'email' });
-                if (pushError) throw pushError;
-            }
-
-            // 3b. Update Guest Orders
-            if (newGuestOrders.length > 0) {
-                const { error: guestError } = await supabase.from('rb_orders').upsert(newGuestOrders, { onConflict: 'id' });
-                if (guestError) throw guestError;
-            }
-
-            onShowToast(`✅ ÉXITO: ${syncedCount} ventas subidas a la Nube Master.`);
-
-            // Optional: Clear local shift automatically?
-            if (confirm(`Se subieron ${syncedCount} ventas. ¿Limpiar la lista local para empezar turno nuevo?`)) {
-                clearShift();
-            }
-
-        } catch (err: any) {
-            console.error(err);
-            onShowToast(`❌ Error subiendo: ${err.message}`);
-        } finally {
-            setIsUploadingCloud(false);
-        }
-    };
+    // Removed unused handleSyncToCloud
 
     if (!isOpen) return null;
 
@@ -416,7 +261,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 {/* Navbar */}
                 <div className="flex border-b border-gray-700 bg-gray-800/50 overflow-x-auto hide-scrollbar">
-                    {(['quick_pos', 'stats', 'marketing', 'cashregister', 'products', 'orders', 'redeem', 'customers', 'suggestions', 'cloud'] as const).map(tab => (
+                    {(['quick_pos', 'stats', 'marketing', 'cashregister', 'products', 'orders', 'customers', 'suggestions'] as const).map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -438,246 +283,48 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         )}
                                     </div>
                                 )}
-                                {tab === 'redeem' && <Gift className="w-5 h-5 mb-1" />}
                                 {tab === 'customers' && <Search className="w-5 h-5 mb-1" />}
                                 {tab === 'suggestions' && <Lightbulb className="w-5 h-5 mb-1" />}
                                 {tab === 'marketing' && <TrendingUp className="w-5 h-5 mb-1 text-pink-400" />}
-                                {tab === 'cloud' && <Cloud className="w-5 h-5 mb-1 text-blue-400" />}
                                 <span className="text-[10px] uppercase font-black">
-                                    {tab === 'quick_pos' ? 'POS RÁPIDO' : tab === 'stats' ? 'Analytics' : tab === 'suggestions' ? 'Ideas' : tab === 'cashregister' ? 'CAJA' : tab}
+                                    {tab === 'quick_pos' ? 'POS RÁPIDO' : tab === 'stats' ? 'Analytics' : tab === 'suggestions' ? 'BUZÓN' : tab === 'cashregister' ? 'CAJA' : tab}
                                 </span>
                             </div>
                         </button>
                     ))}
                 </div>
 
-                {/* POS INFO BAR (Mode Selector & Local Stats) */}
-                <div className="bg-gray-800 border-b border-gray-700 px-6 py-2 flex flex-col sm:flex-row justify-between items-center text-xs">
-                    <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
-                        <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
-                            <button
-                                onClick={() => setIsSatelliteMode(false)}
-                                className={`px-3 py-1 rounded-md font-bold transition-all ${!isSatelliteMode ? 'bg-orange-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
-                            >
-                                Maestro
-                            </button>
-                            <button
-                                onClick={() => setIsSatelliteMode(true)}
-                                className={`px-3 py-1 rounded-md font-bold transition-all ${isSatelliteMode ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
-                            >
-                                Satélite (Offline)
-                            </button>
-                        </div>
-                        <span className={`font-bold ${isSatelliteMode ? 'text-blue-400' : 'text-green-400'}`}>
-                            {isSatelliteMode ? '📦 Trabajando Localmente' : '☁️ Sincronización en Nube'}
-                        </span>
-                    </div>
-
-                    {isSatelliteMode && (
-                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 sm:mt-0">
-                            <span className="text-gray-400 hidden sm:inline">Ventas Turno: <b className="text-white">{localOrders.length}</b></span>
-                            <button
-                                onClick={handleSyncToCloud}
-                                disabled={isUploadingCloud}
-                                className="px-2 sm:px-3 py-1.5 sm:py-1 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition-all flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs shadow-lg animate-pulse"
-                            >
-                                <Cloud size={12} className="shrink-0" />
-                                <span className="truncate">{isUploadingCloud ? 'Subiendo...' : '☁️ SUBIR VENTAS AHORA'}</span>
-                            </button>
-                            <button
-                                onClick={() => {
-                                    const base64 = exportShiftData();
-                                    const msg = `🧾 *Turno Ray Burger*\nEquipo: ${cashierName || 'POS'}\nVentas: ${localOrders.length}\nTotal: $${localOrders.reduce((s, o) => s + o.totalUsd, 0).toFixed(2)}\n\nCódigo de Importación:\n${base64}`;
-                                    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-                                    onShowToast('📋 Reporte enviado a WhatsApp');
-                                }}
-                                className="px-2 sm:px-3 py-1.5 sm:py-1 bg-green-600 hover:bg-green-500 text-white rounded font-bold transition-all flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs shadow-lg"
-                            >
-                                <RefreshCw size={12} className="shrink-0" /> <span className="truncate">Cerrar y Exportar</span>
-                            </button>
-                            <button onClick={clearShift} className="text-red-500 hover:text-red-400 p-1 bg-red-900/10 rounded" title="Limpiar Turno">
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
-                    ) || (
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={() => {
-                                        const input = prompt('Pegue el código de exportación del satélite aquí:');
-                                        if (input) {
-                                            try {
-                                                const data = JSON.parse(atob(input));
-                                                if (data.orders && Array.isArray(data.orders)) {
-                                                    let importedCount = 0;
-                                                    let pointsAddedCount = 0;
-                                                    let skippedCount = 0;
-                                                    let newUsersCount = 0;
-
-                                                    const newGuestOrders = [...guestOrders];
-                                                    let currentUsers = [...registeredUsers];
-
-                                                    // Helper to check duplicates
-                                                    const isDuplicate = (id: string) => {
-                                                        const inGuests = newGuestOrders.some(o => o.orderId === id);
-                                                        const inUsers = currentUsers.some(u => u.orders?.some(o => o.orderId === id));
-                                                        return inGuests || inUsers;
-                                                    };
-
-                                                    data.orders.forEach((order: Order) => {
-                                                        // IDEMPOTENCY CHECK
-                                                        if (isDuplicate(order.orderId)) {
-                                                            skippedCount++;
-                                                            return;
-                                                        }
-
-                                                        importedCount++;
-                                                        const existingUser = order.customerPhone ? currentUsers.find(u => u.phone === order.customerPhone) : null;
-
-                                                        if (existingUser) {
-                                                            // Update existing user: points + order
-                                                            const isAdmin = existingUser.role === 'admin';
-                                                            const pointsToSum = isAdmin ? 0 : (order.pointsEarned || 0);
-
-                                                            const updatedUser = {
-                                                                ...existingUser,
-                                                                points: (existingUser.points || 0) + pointsToSum,
-                                                                orders: [...(existingUser.orders || []), order]
-                                                            };
-                                                            currentUsers = currentUsers.map(u => u.email === existingUser.email ? updatedUser : u);
-                                                            if (pointsToSum > 0) pointsAddedCount++;
-                                                        } else if (order.customerPhone) {
-                                                            // CREACIÓN AUTOMÁTICA DE CLIENTE SI NO EXISTE
-                                                            const newUser: User = {
-                                                                email: `${order.customerPhone}@pos.ray`,
-                                                                phone: order.customerPhone,
-                                                                name: order.customerName || 'Cliente Importado',
-                                                                role: 'customer',
-                                                                loyaltyTier: 'Bronze',
-                                                                points: 50 + (order.pointsEarned || 0), // Bono bienvenida + lo que compró
-                                                                orders: [order],
-                                                                passwordHash: '1234',
-                                                                referralCode: `RB-IMP-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-                                                                referredByCode: 'FUNDADOR'
-                                                            };
-                                                            currentUsers.push(newUser);
-                                                            newUsersCount++;
-                                                        } else {
-                                                            // Add to guest orders
-                                                            newGuestOrders.unshift(order);
-                                                        }
-                                                    });
-
-                                                    updateUsers(currentUsers);
-                                                    updateGuestOrders(newGuestOrders);
-                                                    onShowToast(`✅ ${importedCount} ventas. (+${newUsersCount} clientes nuevos creados)`);
-                                                }
-                                            } catch (e) {
-                                                console.error('Import error:', e);
-                                                onShowToast('❌ Código de importación inválido');
-                                            }
-                                        }
-                                    }}
-                                    className="px-2 sm:px-3 py-1.5 sm:py-1 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition-all flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs"
-                                >
-                                    <Upload size={12} className="shrink-0" /> <span className="truncate">Importar Turno</span>
-                                </button>
-                            </div>
-                        )}
+                {/* POS INFO BAR REMOVED */}
+                {/* Mode Selector & Local Stats hidden for cleaner UI per user request */}
+                <div className="hidden bg-gray-800 border-b border-gray-700 px-6 py-2 flex-col sm:flex-row justify-between items-center text-xs">
+                    {/* ... content hidden ... */}
                 </div>
 
                 {/* Content */}
                 <div className="p-0 flex-1 overflow-y-auto max-h-[75vh]">
                     {activeTab === 'quick_pos' && (
-                        <QuickPOS
-                            products={products}
-                            tasaBs={tasaBs}
-                            cashierName={cashierName || 'Admin'}
-                            registeredUsers={registeredUsers}
-                            onProcessOrder={async (orderData) => {
-                                // Business Logic for POS Rewards
-                                const existingUser = orderData.customerPhone ? registeredUsers.find(u => u.phone === orderData.customerPhone) : null;
-                                const isAdminBuyer = existingUser?.role === 'admin';
-
-                                const newOrder: Order = {
-                                    ...orderData,
-                                    orderId: `POS-${Date.now()}`,
-                                    timestamp: Date.now(),
-                                    // HONESTY RULE: Admins get 0 points in POS
-                                    pointsEarned: isAdminBuyer ? 0 : Math.floor(orderData.totalUsd),
-                                    status: orderData.status || 'approved'
-                                };
-
-                                let whatsappMessage = '';
-
-                                if (orderData.customerPhone) {
-                                    if (existingUser) {
-                                        // Update existing user points
-                                        const updatedUser = {
-                                            ...existingUser,
-                                            points: (existingUser.points || 0) + (newOrder.pointsEarned || 0),
-                                            orders: [...(existingUser.orders || []), newOrder]
-                                        };
-                                        updateUsers(registeredUsers.map(u => u.email === existingUser.email ? updatedUser : u));
-
-                                        if (isAdminBuyer) {
-                                            onShowToast(`👔 Admin detectado: Venta registrada (sin puntos)`);
-                                        } else {
-                                            onShowToast(`🌟 ${newOrder.pointsEarned} puntos sumados a ${existingUser.name}`);
-                                        }
-
-                                        // Standard Receipt for existing customers
-                                        const totalBs = (orderData.totalUsd * tasaBs).toFixed(2);
-                                        whatsappMessage = `🧾 *Recibo Ray Burger*\n\nGracias por tu compra de $${orderData.totalUsd.toFixed(2)} (${totalBs} Bs).\n\n¡Disfruta tu pedido! 🍔\n\n*Saldo Actual:* ${updatedUser.points} puntos.`;
-
-                                    } else {
-                                        // New Customer - Invitation Flow
-                                        const newUser: User = {
-                                            email: `${orderData.customerPhone}@pos.ray`,
-                                            phone: orderData.customerPhone,
-                                            name: 'Cliente Nuevo',
-                                            role: 'customer',
-                                            loyaltyTier: 'Bronze',
-                                            points: 50 + (newOrder.pointsEarned || 0), // Welcome bonus + purchase
-                                            orders: [newOrder],
-                                            passwordHash: '1234', // Temp password
-                                            referralCode: `RB-POS-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-                                            referredByCode: 'FUNDADOR' // Auto-tag as Founder lead for tracking
-                                        };
-                                        updateUsers([...registeredUsers, newUser]);
-                                        onShowToast(`🎉 ¡Cliente nuevo registrado! (+50 pts bono)`);
-
-                                        // VIRAL INVITATION Message (With Credentials)
-                                        const totalBs = (orderData.totalUsd * tasaBs).toFixed(2);
-                                        const userPassword = '1234'; // Default POS password
-                                        whatsappMessage = `🍔 ¡Hola! Gracias por tu compra en Ray Burger.\n\n🧾 *Total:* $${orderData.totalUsd.toFixed(2)} (${totalBs} Bs)\n🎁 *Puntos Ganados:* ${newOrder.pointsEarned}\n\n🔓 *ACCESO A TUS PUNTOS:*\nUsuario: ${orderData.customerPhone}\nClave: ${userPassword}\n\n👇 Entra aquí para canjear premios:\nhttps://rayburgergrill.com.ve/`;
-                                    }
-
-                                    // Trigger WhatsApp
-                                    const whatsappUrl = `https://wa.me/${orderData.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappMessage)}`;
-                                    window.open(whatsappUrl, '_blank');
-                                } else {
-                                    // Anonymous Order
-                                    if (isSatelliteMode) {
-                                        addLocalOrder(newOrder);
-                                    } else {
-                                        updateGuestOrders([newOrder, ...guestOrders]);
-                                        // AUTO-SYNC: Push to cloud immediately for centralization
-                                        pushToCloud('rb_orders', [{ ...newOrder, id: newOrder.orderId }]);
-                                    }
-                                    onShowToast('✅ Venta anónima registrada');
-                                }
-
-                                // AUTO-SYNC FOR REGISTERED USERS TOO (Ensure all sales are central)
-                                if (!isSatelliteMode && orderData.customerPhone) {
-                                    pushToCloud('rb_orders', [{ ...newOrder, id: newOrder.orderId }]);
-                                }
-
-                                // Satellite special: Always save locally even if registration fails
-                                if (isSatelliteMode && orderData.customerPhone) {
-                                    addLocalOrder(newOrder);
-                                }
-                            }}
-                        />
+                        <div className="flex flex-col items-center justify-center h-[60vh] text-center p-8">
+                            <div className="w-24 h-24 bg-orange-600/20 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                                <Plus size={48} className="text-orange-500" />
+                            </div>
+                            <h2 className="text-3xl font-black text-white italic mb-4 uppercase tracking-tighter">Nueva Venta Manual</h2>
+                            <p className="text-gray-400 max-w-md mb-8">
+                                Registra pedidos telefónicos, presenciales o por WhatsApp usando la misma interfaz premium que el cliente.
+                            </p>
+                            <button
+                                onClick={() => {
+                                    window.open('/?mode=cashier', '_blank');
+                                    onShowToast('🚀 Entrando a Modo Cajero...');
+                                }}
+                                className="px-8 py-4 bg-orange-600 hover:bg-orange-500 text-white rounded-2xl font-black text-xl shadow-[0_0_30px_rgba(234,88,12,0.3)] transition-all hover:scale-105 active:scale-95 flex items-center gap-3"
+                            >
+                                <ShoppingBag size={24} />
+                                IR A LA TIENDA (CAJERO)
+                            </button>
+                            <p className="mt-6 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                                Los pedidos se guardarán vinculados a tu nombre: <span className="text-orange-500">{cashierName || 'Administrador'}</span>
+                            </p>
+                        </div>
                     )}
 
                     {activeTab === 'stats' && (
@@ -717,33 +364,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 {/* Total Points in Circulation */}
                                                 <div className="bg-gradient-to-br from-orange-900/30 to-orange-800/10 p-6 rounded-xl border border-orange-700/30">
                                                     <div className="flex items-center justify-between mb-2">
-                                                        <span className="text-orange-400 text-sm font-bold uppercase tracking-wider">Puntos Totales</span>
-                                                        <span className="text-2xl">🎯</span>
+                                                        <span className="text-orange-400 text-sm font-bold uppercase tracking-wider">Dinero en Billeteras</span>
+                                                        <span className="text-2xl">💰</span>
                                                     </div>
                                                     <div className="text-4xl font-black text-white">
-                                                        {realCustomers.reduce((sum, u) => sum + (u.points || 0), 0).toLocaleString()}
+                                                        ${realCustomers.reduce((sum, u) => sum + (u.walletBalance_usd || 0), 0).toFixed(2)}
                                                     </div>
-                                                    <p className="text-orange-400/60 text-xs mt-1">En circulación (clientes reales)</p>
+                                                    <p className="text-orange-400/60 text-xs mt-1">Saldo a favor (clientes reales)</p>
                                                 </div>
 
                                                 {/* Points Awarded Today */}
                                                 <div className="bg-gradient-to-br from-green-900/30 to-green-800/10 p-6 rounded-xl border border-green-700/30">
                                                     <div className="flex items-center justify-between mb-2">
-                                                        <span className="text-green-400 text-sm font-bold uppercase tracking-wider">Puntos Hoy</span>
-                                                        <span className="text-2xl">⭐</span>
+                                                        <span className="text-green-400 text-sm font-bold uppercase tracking-wider">Recompensas Hoy</span>
+                                                        <span className="text-2xl">🎁</span>
                                                     </div>
                                                     <div className="text-4xl font-black text-white">
-                                                        {(() => {
+                                                        ${(() => {
                                                             const today = new Date().toDateString();
                                                             const realCustomerEmails = new Set(realCustomers.map(u => u.email));
                                                             return allOrders
                                                                 .filter(o => o.status === 'approved' &&
                                                                     new Date(o.timestamp).toDateString() === today &&
                                                                     realCustomerEmails.has(o.userEmail))
-                                                                .reduce((sum, o) => sum + (o.pointsEarned || 0), 0);
-                                                        })()}
+                                                                .reduce((sum, o) => sum + (o.rewardsEarned_usd || 0), 0);
+                                                        })().toFixed(2)}
                                                     </div>
-                                                    <p className="text-green-400/60 text-xs mt-1">Otorgados hoy</p>
+                                                    <p className="text-green-400/60 text-xs mt-1">Otorgado hoy en cashback</p>
                                                 </div>
 
                                                 {/* New Registrations Today */}
@@ -1157,7 +804,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             updateGuestOrders={updateGuestOrders}
                             highlightOrderId={initialOrderId}
                             allProducts={products}
-                            pushToCloud={pushToCloud}
                         />
                     )}
 
@@ -1245,7 +891,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                     <span className="text-gray-400">{p.category}</span>
                                                     <span className="text-orange-400 font-bold">${p.basePrice_usd.toFixed(2)}</span>
                                                     {p.stockQuantity !== undefined && (
-                                                        <span className={`px - 1.5 py - 0.5 rounded ${p.stockQuantity < 5 ? 'bg-red-900/30 text-red-500' : 'bg-gray-900 text-gray-500'} `}>
+                                                        <span className={`px-1.5 py-0.5 rounded ${p.stockQuantity < 5 ? 'bg-red-900/30 text-red-500' : 'bg-gray-900 text-gray-500'}`}>
                                                             Stock: {p.stockQuantity}
                                                         </span>
                                                     )}
@@ -1272,26 +918,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             e.preventDefault();
                                             const formData = new FormData(e.target);
                                             const phone = formData.get('phone') as string;
+                                            const normalizedPhone = normalizePhone(phone);
                                             const name = formData.get('name') as string;
                                             const lastName = formData.get('lastName') as string;
                                             const birthDate = formData.get('birthDate') as string;
 
-                                            if (!phone) return;
+                                            if (!normalizedPhone) return;
+
+                                            // PREVENT DUPLICATES
+                                            const exists = registeredUsers.find(u =>
+                                                normalizePhone(u.phone) === normalizedPhone ||
+                                                u.email === normalizedPhone + "@ray.pos"
+                                            );
+
+                                            if (exists) {
+                                                onShowToast(`⚠️ El cliente ya existe: ${exists.name}`);
+                                                return;
+                                            }
 
                                             const newUser: User = {
-                                                email: phone + "@ray.pos",
-                                                phone,
+                                                email: normalizedPhone + "@ray.pos",
+                                                phone: normalizedPhone,
                                                 name: name || "Cliente",
                                                 lastName: lastName || undefined,
                                                 birthDate: birthDate || undefined,
-                                                points: 50, // Welcome Bonus for POS registration too!
+                                                walletBalance_usd: 2, // Welcome Bonus $2
+                                                lifetimeSpending_usd: 0,
                                                 referralCode: 'POS-' + Date.now(),
                                                 role: 'customer',
                                                 orders: [],
                                                 loyaltyTier: 'Bronze',
                                                 passwordHash: '1234',
                                                 registrationDate: Date.now(),
-                                                registeredVia: 'pos'
+                                                registeredVia: 'pos',
+                                                points: 0
                                             };
                                             updateUsers([...registeredUsers, newUser]);
                                             e.target.reset();
@@ -1334,7 +994,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         <h3 className="font-bold text-white">Base de Datos ({registeredUsers.length})</h3>
                                         <button
                                             onClick={() => {
-                                                const csv = "Nombre,Telefono,Puntos,Email\n" + registeredUsers.map(u => `${u.name},${u.phone},${u.points},${u.email}`).join("\n");
+                                                const csv = "Nombre,Telefono,Saldo,Email\n" + registeredUsers.map(u => `${u.name},${u.phone},$${(u.walletBalance_usd || 0).toFixed(2)},${u.email}`).join("\n");
                                                 const blob = new Blob([csv], { type: 'text/csv' });
                                                 const url = URL.createObjectURL(blob);
                                                 const a = document.createElement('a');
@@ -1359,9 +1019,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                     }}
                                                 >
                                                     <p className="font-bold text-white text-sm">
-                                                        {(u.name === 'Cliente' || !u.name) ? <span className="text-orange-500/50 italic">Sin nombre (Tocar para editar)</span> : `${u.name} ${u.lastName || ''}`}
+                                                        {(['Cliente', 'Cliente Nuevo', 'Invitado'].includes(u.name) || !u.name) ? <span className="text-orange-500/50 italic">Sin nombre (Tocar para editar)</span> : `${u.name} ${u.lastName || ''}`}
                                                     </p>
-                                                    <p className="text-[10px] text-gray-500 font-mono">{u.phone}</p>
+                                                    <p className="text-[10px] text-gray-400 font-mono">+58 {normalizePhone(u.phone)}</p>
                                                     {showPasswords && (
                                                         <p className="text-[10px] text-orange-400 mt-1">
                                                             Clave: <span className="bg-orange-900/20 px-1 rounded">{u.passwordHash === '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4' ? '1234' : '••••••'}</span>
@@ -1370,7 +1030,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <div className="text-right mr-2">
-                                                        <p className="text-orange-500 font-bold text-sm">{u.points} pts</p>
+                                                        <p className="text-orange-500 font-bold text-sm">${(u.walletBalance_usd || 0).toFixed(2)}</p>
                                                     </div>
                                                     <button
                                                         onClick={() => {
@@ -1399,98 +1059,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                     )}
 
-                    {activeTab === 'redeem' && (
-                        <div className="space-y-6">
-                            <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
-                                <div className="relative mb-6">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        placeholder="Buscar por teléfono..."
-                                        value={redeemSearch}
-                                        onChange={e => setRedeemSearch(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none focus:border-orange-500"
-                                    />
-                                </div>
-                                {(() => {
-                                    // FILTER & SORT
-                                    let usersToShow = registeredUsers.filter(u => (u.points || 0) > 0);
 
-                                    if (redeemSearch.trim()) {
-                                        usersToShow = usersToShow.filter(u =>
-                                            u.phone.includes(redeemSearch) ||
-                                            u.name.toLowerCase().includes(redeemSearch.toLowerCase())
-                                        );
+                    {activeTab === 'customers' && (
+                        <div className="mt-6 p-6 bg-purple-900/10 border border-purple-500/20 rounded-2xl">
+                            <h4 className="text-purple-500 font-bold mb-4 flex items-center gap-2">
+                                🧬 Unificación de Clientes
+                            </h4>
+                            <p className="text-xs text-gray-400 mb-6 leading-relaxed">
+                                Detecta clientes duplicados por número de teléfono, suma sus saldos en una cuenta maestra y elimina los registros sobrantes.
+                            </p>
+                            <button
+                                onClick={async () => {
+                                    if (confirm('🧬 ¿Fusionar clientes duplicados?\n\nEsto agrupará saldos y pedidos de usuarios con el mismo teléfono.\nEsta acción no se puede deshacer.')) {
+                                        const result = await mergeDuplicates();
+                                        if (result.error) {
+                                            onShowToast('❌ Error: ' + result.error);
+                                        } else {
+                                            if (result.merged && result.merged > 0) {
+                                                onShowToast(`✅ Éxito: ${result.merged} cuentas fusionadas y ${result.deleted} duplicados eliminados.`);
+                                                setTimeout(() => window.location.reload(), 2000);
+                                            } else {
+                                                onShowToast('✨ No se encontraron duplicados para fusionar.');
+                                            }
+                                        }
                                     }
-
-                                    // Sort by points desc
-                                    usersToShow.sort((a, b) => (b.points || 0) - (a.points || 0));
-
-                                    if (usersToShow.length === 0) {
-                                        return (
-                                            <div className="text-center py-20 text-gray-500 italic">
-                                                {redeemSearch ? 'No se encontraron clientes con ese criterio.' : 'Nadie tiene puntos todavía. ¡A vender!'}
-                                            </div>
-                                        );
-                                    }
-
-                                    return (
-                                        <div className="space-y-4 animate-in fade-in duration-300 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-                                            {usersToShow.map(user => (
-                                                <div key={user.email} className="bg-gray-900 p-4 rounded-lg flex flex-col gap-3 border border-gray-800">
-                                                    <div className="flex justify-between items-center">
-                                                        <div>
-                                                            <h4 className="font-bold text-white flex items-center gap-2">
-                                                                {user.name}
-                                                                {user.birthDate && <span className="text-[10px] bg-pink-900/50 text-pink-400 px-1.5 py-0.5 rounded border border-pink-700">🎂 {user.birthDate}</span>}
-                                                            </h4>
-                                                            <p className="text-gray-500 text-xs font-mono">{user.phone}</p>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <p className="text-orange-500 text-xl font-black">{user.points} <span className="text-xs font-normal">pts</span></p>
-                                                            {user.cashbackBalance_usd && user.cashbackBalance_usd > 0 && (
-                                                                <p className="text-green-400 text-xs font-bold">${user.cashbackBalance_usd.toFixed(2)} Cashback</p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* REDEEM ACTION */}
-                                                    <div className="flex gap-2 bg-gray-950/50 p-2 rounded">
-                                                        <input
-                                                            type="number"
-                                                            placeholder="Puntos a canjear"
-                                                            className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1 text-white text-sm"
-                                                            onChange={e => {
-                                                                // Store temporary state per user? 
-                                                                // Simpler: Just rely on specialized UI or a single active user logic?
-                                                                // For now, let's just make the input update a specialized state, BUT this maps multiple inputs.
-                                                                // Actually, to avoid complexity, maybe just ONE input ref? 
-                                                                // No, better to have a tiny form for each or a "Select to Redeem" button that opens a focused modal.
-                                                                // Let's do: "Select" -> sets active user for redemption.
-                                                            }}
-                                                        // Since this is a list, state management for inputs is tricky without sub-components.
-                                                        // Let's simplify: Show "Canjear" button -> Opens mini modal/section.
-                                                        // OR: Just keep logic simple: 
-                                                        />
-                                                        {/* WAIT, invalid logic above. I can't bind multiple inputs to one state `redeemAmount`. */}
-                                                        {/* BETTER UX: Click user to expand redemption controls. */}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {/* RE-FACTOR: To handle state properly for a list, I will create a selected user state. */}
-                                        </div>
-                                    );
-                                })()}
-                                {/* I NEED TO FIX THE RENDER LOGIC TO HANDLE STATE CORRECTLY. I WILL USE A SEPARATE 'Selected User' view. */}
-                                {/* Let's rewrite the replacement content to be cleaner. */}
-                            </div>
+                                }}
+                                disabled={isSyncing}
+                                className="w-full sm:w-auto px-6 py-3 bg-purple-600/20 hover:bg-purple-600 text-purple-400 hover:text-white border border-purple-500/30 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                            >
+                                {isSyncing ? <RefreshCw className="animate-spin" size={16} /> : <Users size={16} />}
+                                Fusionar Duplicados
+                            </button>
                         </div>
                     )}
+
 
                     {activeTab === 'suggestions' && (
                         <div className="space-y-6">
                             <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
                                 <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                                    <Lightbulb className="text-yellow-500" /> Ideas de Clientes
+                                    <Lightbulb className="text-yellow-500" /> Buzón de Sugerencias
                                 </h3>
 
                                 {suggestions.length === 0 ? (
@@ -1693,18 +1301,6 @@ Mientras más amigos traigas, más ganas.
                     )}
 
 
-                    {activeTab === 'cloud' && (
-                        <CloudSyncSection
-                            onShowToast={onShowToast}
-                            registeredUsers={registeredUsers}
-                            updateUsers={updateUsers}
-                            guestOrders={guestOrders}
-                            updateGuestOrders={updateGuestOrders}
-                            allOrders={allOrders}
-                            autoPullOnStart={autoPullOnStart}
-                            setAutoPullOnStart={setAutoPullOnStart}
-                        />
-                    )}
                 </div>
             </div>
 
@@ -1749,6 +1345,21 @@ Mientras más amigos traigas, más ganas.
                                     className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-gray-500 outline-none font-mono cursor-not-allowed"
                                 />
                             </div>
+                            <div>
+                                <label className="block text-xs font-black text-gray-500 uppercase mb-2 tracking-widest">Saldo en Billetera</label>
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        value={customerToEdit.walletBalance_usd || 0}
+                                        onChange={(e) => setCustomerToEdit({ ...customerToEdit, walletBalance_usd: parseFloat(e.target.value) || 0 })}
+                                        className="flex-1 bg-gray-900 border border-gray-700 rounded-xl p-3 text-orange-500 outline-none focus:border-orange-500 transition-all font-black text-xl"
+                                    />
+                                    <div className="text-gray-500 text-xs font-bold w-20">
+                                        USD
+                                    </div>
+                                </div>
+                            </div>
 
                             <div className="pt-4 border-t border-gray-700 flex flex-col gap-3">
                                 <p className="text-[10px] text-gray-500 text-center px-4">
@@ -1782,7 +1393,7 @@ Mientras más amigos traigas, más ganas.
                                         onShowToast('❌ El nombre es obligatorio');
                                         return;
                                     }
-                                    const updatedUsers = registeredUsers.map(u => u.phone === customerToEdit.phone ? { ...u, ...customerToEdit } : u);
+                                    const updatedUsers = registeredUsers.map(u => u.phone === customerToEdit.phone ? ({ ...u, ...customerToEdit } as User) : u);
                                     await updateUsers(updatedUsers);
                                     setIsEditingCustomer(false);
                                     onShowToast('✅ Cliente actualizado correctamente');
@@ -1799,179 +1410,6 @@ Mientras más amigos traigas, más ganas.
     );
 };
 
-const CloudSyncSection: React.FC<{
-    onShowToast: (msg: string) => void,
-    registeredUsers: User[],
-    updateUsers: (users: User[]) => Promise<void>,
-    guestOrders: Order[],
-    updateGuestOrders: (updatedOrders: Order[]) => Promise<void>,
-    allOrders: any[],
-    autoPullOnStart: boolean,
-    setAutoPullOnStart: (val: boolean) => void
-}> = ({ onShowToast, registeredUsers, updateUsers, guestOrders, updateGuestOrders, allOrders, autoPullOnStart, setAutoPullOnStart }) => {
-    const { isSyncing, lastSync, migrateAllToCloud, pullFromCloud, wipeCloudData } = useCloudSync();
-    const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
-    const [isPurging, setIsPurging] = useState(false);
-
-    return (
-        <div className="max-w-4xl mx-auto space-y-6">
-            <div className="bg-gray-800 p-8 rounded-2xl border border-gray-700 shadow-2xl">
-                <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-                    <Cloud className="text-blue-400" /> Sincronización Cloud
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div className="bg-gray-900 p-4 rounded-xl border border-gray-700">
-                        <p className="text-xs text-gray-500 uppercase font-bold mb-1">Última Sincro</p>
-                        <p className="text-white">{lastSync ? new Date(lastSync).toLocaleString() : 'Nunca'}</p>
-                    </div>
-                    <div className="bg-gray-900 p-4 rounded-xl border border-gray-700 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-blue-400 uppercase font-bold mb-1">Auto-Puxar al Iniciar</p>
-                            <p className="text-[10px] text-gray-500">¿Descargar de la nube al abrir?</p>
-                        </div>
-                        <button
-                            onClick={() => {
-                                const nextValue = !autoPullOnStart;
-                                setAutoPullOnStart(nextValue);
-                                localStorage.setItem('rayburger_autopull_enabled', String(nextValue));
-                            }}
-                            className={`w-12 h-6 rounded-full transition-all relative ${autoPullOnStart ? 'bg-blue-600' : 'bg-gray-700'}`}
-                        >
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${autoPullOnStart ? 'right-1' : 'left-1'}`} />
-                        </button>
-                    </div>
-                </div>
-                <button
-                    onClick={async () => {
-                        setStatus('idle');
-                        const results = await migrateAllToCloud();
-                        if (results.some(r => r.error)) {
-                            setStatus('error');
-                            onShowToast('❌ Error en la sincronización. Verifica tus credenciales.');
-                        } else {
-                            setStatus('success');
-                            onShowToast('✅ Datos sincronizados con la nube correctamente.');
-                        }
-                    }}
-                    disabled={isSyncing}
-                    className={`w-full py-4 rounded-xl font-black text-lg uppercase transition-all flex items-center justify-center gap-3
-                        ${isSyncing ? 'bg-gray-700' : status === 'success' ? 'bg-green-600' : status === 'error' ? 'bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}`}
-                >
-                    {isSyncing ? <><RefreshCw className="animate-spin" /> Sincronizando...</> : status === 'success' ? <><CheckCircle2 /> ¡Protegido!</> : status === 'error' ? '❌ Error' : 'Iniciar Migración Cloud'}
-                </button>
-
-                <div className="pt-4 border-t border-gray-700">
-                    <h4 className="text-white font-bold mb-2 flex items-center gap-2"><Download size={16} className="text-orange-400" /> Descargar de la Nube</h4>
-                    <p className="text-gray-400 text-xs mb-4">Usa esto si hiciste cambios en otro dispositivo (ej. celular) y no los ves aquí.</p>
-                    <button
-                        onClick={async () => {
-                            if (confirm('⚠️ ¿Estás seguro? Esto reemplazará tus datos locales con lo que hay en la nube.')) {
-                                setStatus('idle');
-                                const result = await pullFromCloud();
-                                if (result.error) {
-                                    setStatus('error');
-                                    onShowToast('❌ Error al descargar: ' + result.error);
-                                } else {
-                                    onShowToast('✅ Datos actualizados desde la nube. Recargando...');
-                                    setTimeout(() => window.location.reload(), 1500);
-                                }
-                            }
-                        }}
-                        disabled={isSyncing}
-                        className="w-full py-3 bg-gray-700 hover:bg-orange-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2"
-                    >
-                        {isSyncing ? <RefreshCw className="animate-spin" /> : <Download size={18} />}
-                        Descargar Cambios
-                    </button>
-                </div>
-
-                <div className="mt-8 p-4 bg-blue-900/20 border border-blue-500/30 rounded-xl">
-                    <h4 className="text-blue-400 font-bold mb-2 flex items-center gap-2">💡 ¿Cómo sincronizar 2 dispositivos?</h4>
-                    <ol className="text-xs text-gray-400 space-y-2 list-decimal ml-4">
-                        <li>En el dispositivo con los cambios: Pulsa <b className="text-white">"Iniciar Migración Cloud"</b>.</li>
-                        <li>En el dispositivo donde quieres ver los datos: Pulsa <b className="text-white">"Descargar Cambios"</b>.</li>
-                        <li><span className="text-white font-bold">¡Listo!</span> Los datos se habrán fusionado correctamente.</li>
-                    </ol>
-                </div>
-
-                {/* MAINTENANCE SECTION */}
-                <div className="mt-8 p-6 bg-red-900/10 border border-red-500/20 rounded-2xl">
-                    <h4 className="text-red-500 font-bold mb-4 flex items-center gap-2">⚙️ Mantenimiento de Datos</h4>
-                    <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-                        Esta herramienta permite limpiar el historial de pruebas. Eliminará todos los pedidos realizados <b className="text-white">antes del 25 de diciembre</b>. Los puntos actuales de los clientes NO se verán afectados.
-                    </p>
-                    <button
-                        onClick={async () => {
-                            // FIX: Safe Purge - Keep data from Dec 25th onwards
-                            const purgeDate = new Date('2025-12-25T00:00:00').getTime();
-                            const ordersToPurge = allOrders.filter(o => o.timestamp < purgeDate).length;
-
-                            if (ordersToPurge === 0) {
-                                onShowToast('✨ El historial antiguo ya está limpio.');
-                                return;
-                            }
-
-                            const confirmed = confirm(`⚠️ MANTENIMIENTO: Se eliminarán ${ordersToPurge} pedidos ANTERIORES al 25 de Diciembre.\n\nTus ventas desde esa fecha se mantendrán intactas.\n¿Proceder con la limpieza?`);
-
-                            if (confirmed) {
-                                setIsPurging(true);
-                                try {
-                                    await wipeCloudData(purgeDate);
-
-                                    // Also wipe locally
-                                    const updatedLocalOrders = guestOrders.filter(o => o.timestamp >= purgeDate);
-                                    await updateGuestOrders(updatedLocalOrders);
-
-                                    // Local Users maintenance (strip old orders if needed - optional but for safety let's leave as is)
-                                    const updatedUsers = registeredUsers.map(u => ({
-                                        ...u,
-                                        orders: (u.orders || []).filter(o => o.timestamp >= purgeDate)
-                                    }));
-                                    await updateUsers(updatedUsers);
-
-                                    onShowToast('🧹 Limpieza completada con éxito');
-                                    setIsPurging(false);
-
-                                    // Reset counters for refresh
-                                    setTimeout(() => window.location.reload(), 1500);
-                                } catch (err) {
-                                    console.error(err);
-                                    onShowToast('❌ Error durante la limpieza');
-                                    setIsPurging(false);
-                                }
-                            }
-                        }}
-                        disabled={isPurging}
-                        className="w-full sm:w-auto px-6 py-3 bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/30 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50"
-                    >
-                        {isPurging ? <RefreshCw className="animate-spin" size={16} /> : <Trash2 size={16} />}
-                        {isPurging ? 'Limpiando...' : 'Limpiar Datos PREVIOS al 25 Dic'}
-                    </button>
-                </div>
-
-                {/* ZONA DE PELIGRO - GESTIÓN DE MENÚ */}
-                <div className="mt-12 p-6 bg-red-600/5 border border-red-500/10 rounded-2xl">
-                    <h4 className="text-red-500/50 font-black text-[10px] uppercase tracking-widest mb-4 flex items-center gap-2">⚠️ Zona de Peligro (Gestión Crítica)</h4>
-                    <p className="text-xs text-gray-500 mb-6">Estas opciones sobrescriben datos del menú. Úsalas solo bajo recomendación técnica.</p>
-                    <div className="flex flex-wrap gap-4">
-                        <button
-                            onClick={async () => {
-                                if (confirm('🚨 ¡CUIDADO! 🚨\n\n¿Estás SEGURO de que deseas RESTAURAR EL MENÚ?\n\nEsto borrará todos los productos que hayas creado y restaurará la lista de ejemplo original. No se puede deshacer.')) {
-                                    if (confirm('Última advertencia:\n¿Realmente deseas borrar tus productos actuales y cargar el menú de ejemplo?')) {
-                                        await resetToSample();
-                                        onShowToast('🔄 Menú restaurado a valores de ejemplo');
-                                    }
-                                }
-                            }}
-                            className="px-4 py-2 border border-red-500/20 text-red-500/40 hover:text-white hover:bg-red-600 rounded-lg text-xs font-bold transition-all"
-                        >
-                            Reiniciar Menú a Fábrica
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 export default AdminDashboard;
+

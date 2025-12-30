@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, ChefHat, Truck, CheckCircle, X } from 'lucide-react';
+import { Clock, CheckCircle, X } from 'lucide-react';
 import { Order } from '../../types';
 
 interface OrderStatusTrackerProps {

@@ -28,7 +28,7 @@ const OrderTracker: React.FC<OrderTrackerProps> = ({ order }) => {
                             <span className="relative inline-flex rounded-full h-3 w-3 bg-orange-500"></span>
                         </span>
                         <h3 className="text-white font-bold text-sm uppercase tracking-wider">
-                            Tu pedido #{order.id.slice(-4)} está {steps[currentStepIndex]?.label.toLowerCase()}
+                            Tu pedido #{order.orderId.slice(-4)} está {steps[currentStepIndex]?.label.toLowerCase()}
                         </h3>
                     </div>
                 </div>

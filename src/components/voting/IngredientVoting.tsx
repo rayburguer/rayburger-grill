@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Heart, Trophy, Flame, Plus } from 'lucide-react';
+import { Trophy, Flame, Plus } from 'lucide-react';
 import { VOTING_INGREDIENTS } from '../../data/votingOptions';
 import { useCloudSync } from '../../hooks/useCloudSync';
 import { safeLocalStorage } from '../../utils/debounce';

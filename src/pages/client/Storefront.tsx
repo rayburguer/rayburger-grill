@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Search, TrendingUp } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { Search, TrendingUp, ShieldCheck, Trash2, X } from 'lucide-react';
 
 // Components
 import Header from '../../components/layout/Header';
@@ -19,7 +20,6 @@ import HeroSection from '../../components/layout/HeroSection';
 import FAQSection from '../../components/layout/FAQSection';
 import OrderStatusTracker from '../../components/ui/OrderStatusTracker';
 import SurveyModal from '../../components/feedback/SurveyModal';
-import LeaderboardModal from '../../components/loyalty/LeaderboardModal';
 import Toast from '../../components/ui/Toast';
 import FloatingCart from '../../components/ui/FloatingCart';
 import InstallPrompt from '../../components/ui/InstallPrompt';
@@ -36,7 +36,7 @@ import { useSettings } from '../../hooks/useSettings';
 import { useCloudSync } from '../../hooks/useCloudSync';
 
 // Data & Config
-import { ALL_CATEGORIES_KEY, SKIP_LINK_ID } from '../../config/constants'; // Fix path
+import { ALL_CATEGORIES_KEY, SKIP_LINK_ID, WELCOME_BONUS_USD } from '../../config/constants'; // Fix path
 import { generateUuid, normalizePhone } from '../../utils/helpers';
 import '../../index.css';
 import { Product, User, Order } from '../../types'; // Fix path
@@ -60,26 +60,10 @@ const Storefront: React.FC = () => {
     const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
     const [initialReferralCode, setInitialReferralCode] = useState("");
 
-    // Detect Promo Code from URL
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const promo = params.get('promo');
-        const ref = params.get('ref'); // Support ?ref= for user referrals too
-        if (promo) {
-            setInitialReferralCode(promo);
-            // Auto-open register if promo is present? Maybe too aggressive, but good for conversion.
-            // Let's just set it for when they click register.
-            setIsRegisterModalOpen(true);
-        } else if (ref) {
-            setInitialReferralCode(ref);
-            setIsRegisterModalOpen(true);
-        }
-    }, []);
 
     const [isProductDetailModalOpen, setIsProductDetailModalOpen] = useState<boolean>(false);
     const [selectedProductForDetail, setSelectedProductForDetail] = useState<Product | null>(null);
     const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState<boolean>(false);
-    const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
     const [isSurveyModalOpen, setIsSurveyModalOpen] = useState(false);
     const [lastOrderId, setLastOrderId] = useState<string>('');
     const [activeOrder, setActiveOrder] = useState<Order | null>(() => {
@@ -94,7 +78,7 @@ const Storefront: React.FC = () => {
     });
 
     const [isRouletteOpen, setIsRouletteOpen] = useState<boolean>(false);
-    const [initialRefCode, setInitialRefCode] = useState<string>('');
+    const [isCashierMode, setIsCashierMode] = useState<boolean>(false);
 
     // Toast State
     const [isToastVisible, setIsToastVisible] = useState<boolean>(false);
@@ -120,8 +104,8 @@ const Storefront: React.FC = () => {
     const { products } = useProducts();
     const { tasaBs, addGuestOrder } = useSettings();
     const { addSurvey } = useSurveys();
-    const { processOrderRewards } = useLoyalty();
-    const { migrateAllToCloud } = useCloudSync();
+    const { processOrderRewards, processWalletPayment } = useLoyalty();
+    useCloudSync(); // Hook remains for its internal effects if any, but we don't need the return val
 
     // Toast Handlers
     const showToast = useCallback((message: string) => {
@@ -129,32 +113,53 @@ const Storefront: React.FC = () => {
         setIsToastVisible(true);
     }, []);
 
-    // Check URL for referral code on mount
-    const refProcessed = React.useRef(false);
     // --- DEEP LINKING & URL PARAMS ---
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
 
-        // 1. Check for referrals
+        // 1. Check for referrals / promos
+        const promo = params.get('promo');
         const ref = params.get('ref');
-        if (ref && !currentUser) {
-            setInitialRefCode(ref);
+
+        if ((promo || ref) && !currentUser) {
+            setInitialReferralCode(promo || ref || "");
             setIsRegisterModalOpen(true);
-            showToast("🎁 ¡Código de referido detectado!");
+            showToast("🎁 ¡Código detectado!");
         }
 
         // 2. Check for Admin Deep Link
         const isAdminAction = params.get('admin');
-
         if (isAdminAction === 'orders') {
             navigate('/admin');
         }
 
-        // Clean URL if any params existed
-        if (ref || isAdminAction) {
+        // 3. Check for Cashier Mode
+        if (params.get('mode') === 'cashier') {
+            setIsCashierMode(true);
+            showToast("👮 MODO CAJERO ACTIVO");
+        }
+
+        // Clean URL if any params existed (but keep mode for persistence if needed? No, better keep it in state)
+        if (promo || ref || isAdminAction || params.get('mode')) {
             window.history.replaceState({}, '', window.location.pathname);
         }
-    }, [currentUser, showToast]);
+    }, [currentUser, navigate, showToast]);
+
+    // VISITOR TRACKING
+    useEffect(() => {
+        const trackVisit = async () => {
+            const hasVisited = sessionStorage.getItem('rb_visited');
+            if (!hasVisited && supabase) {
+                try {
+                    await supabase.rpc('increment_visitors');
+                    sessionStorage.setItem('rb_visited', 'true');
+                } catch (e) {
+                    console.error("Failed to track visit", e);
+                }
+            }
+        };
+        trackVisit();
+    }, []);
 
     const closeToast = useCallback(() => {
         setIsToastVisible(false);
@@ -186,9 +191,6 @@ const Storefront: React.FC = () => {
         openProductDetail(product);
     };
 
-    const openAdminDashboard = useCallback(() => {
-        navigate('/admin');
-    }, [navigate]);
 
     // Aggressive Admin Path Detection REMOVED
     // Navigation is now handled by the Router in MainRouter.tsx
@@ -231,7 +233,16 @@ const Storefront: React.FC = () => {
         }
     }, [login, closeLogin, showToast]);
 
-    const handleOrderConfirmed = useCallback(async (buyerEmail: string, buyerName?: string, deliveryInfo?: { method: 'delivery' | 'pickup', fee: number, phone: string }, newRegistrationData?: { password: string }, pointsUsed: number = 0) => {
+    const handleOrderConfirmed = useCallback(async (
+        buyerEmail: string,
+        buyerName?: string,
+        deliveryInfo?: { method: 'delivery' | 'pickup', fee: number, phone: string },
+        newRegistrationData?: { password: string },
+        balanceUsed_usd: number = 0,
+        isInternal: boolean = false,
+        paymentStatus: 'pending' | 'paid' = 'paid',
+        paymentMethod: 'cash' | 'pago_movil' | 'zelle' | 'other' | 'whatsapp_link' = 'whatsapp_link'
+    ) => {
         let message = "¡Pedido recibido! Pronto nos pondremos en contacto.";
         let finalUser = currentUser;
 
@@ -240,27 +251,41 @@ const Storefront: React.FC = () => {
             const newUser: User = {
                 name: buyerName,
                 email: buyerEmail,
-                phone: deliveryInfo.phone,
+                phone: normalizePhone(deliveryInfo.phone),
                 passwordHash: newRegistrationData.password,
                 referralCode: `RB-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
-                points: 50, // Welcome Bonus included in register() usually, but safe to set
+                walletBalance_usd: WELCOME_BONUS_USD,
+                lifetimeSpending_usd: 0,
                 loyaltyTier: 'Bronze',
                 role: 'customer',
                 orders: [],
-                lastPointsUpdate: Date.now()
+                points: 50,
             };
 
             // Attempt to register
             const success = await register(newUser);
             if (success) {
                 finalUser = newUser; // Use the new user for rewards processing
-                showToast("🎉 ¡Cuenta creada! Te has ganado $50 de bienvenida.");
+                showToast("🎉 ¡Cuenta de socio creada!");
+
+                // Welcome WhatsApp if in Cashier Mode
+                if (isInternal) {
+                    const welcomeMsg = `🍔 *¡Bienvenido a Ray Burger Grill!* 🍔\n\n` +
+                        `Te hemos registrado como socio. ¡Ya tienes *50 puntos* de regalo por tu primera compra!\n\n` +
+                        `🔓 *TUS CREDENCIALES:*\n` +
+                        `👤 Usuario: ${deliveryInfo?.phone}\n` +
+                        `🔐 Clave: ${newRegistrationData.password}\n\n` +
+                        `🚀 Entra aquí para ver tus puntos y premios acumulados:\n` +
+                        `${window.location.origin}`;
+
+                    window.open(`https://wa.me/${normalizePhone(deliveryInfo?.phone || '')}?text=${encodeURIComponent(welcomeMsg)}`, '_blank');
+                }
             } else {
-                showToast("⚠️ No se pudo crear la cuenta (¿Email usado?), pero procesaremos tu pedido.");
+                showToast("⚠️ No se pudo crear la cuenta, pero procesaremos el pedido.");
             }
         }
 
-        let currentOrder: any;
+        let currentOrder: Order | null = null;
 
         // If we have a user (either existing or newly registered)
         if (finalUser) {
@@ -274,35 +299,64 @@ const Storefront: React.FC = () => {
 
             // WORKAROUND: Create a temporary updated list for the calculation
             let currentUsersList = registeredUsers;
-            if (!currentUser && finalUser) { // If we just registered
+            if (!currentUser && finalUser) {
                 currentUsersList = [...registeredUsers, finalUser];
             }
 
-            const resultWithNewUser = processOrderRewards(buyerEmail, cart, totalUsd, currentUsersList, deliveryInfo);
+            // 🛡️ SECURITY CHECK: Server-Side Balance Validation
+            const buyerUser = currentUsersList.find(u => u.email === buyerEmail);
+            if (balanceUsed_usd > 0 && buyerUser) {
+                // If user is just registering (finalUser), they have 0 balance anyway, so this check strictly applies to existing users.
+                // Or if finalUser has a welcome bonus? No, welcome bonus is added AFTER.
+                // Only check if we are actually deducting.
+
+                // If ID is missing (new local user not synced?), we can't check server. 
+                // But for Security Phase, we assume users interacting with money rely on cloud.
+                if (buyerUser.id) {
+                    const secure = await processWalletPayment(buyerUser.id, balanceUsed_usd);
+                    if (!secure.success) {
+                        showToast(`⛔ ERROR DE SEGURIDAD: ${secure.error || 'Fondos insuficientes en la nube'}`);
+                        return; // ABORT TRANSACTION
+                    }
+                }
+            }
+
+            const resultWithNewUser = processOrderRewards(buyerEmail, cart, totalUsd, currentUsersList, deliveryInfo, balanceUsed_usd);
 
             if (resultWithNewUser) {
-                const { updatedUsers, orderSummary } = resultWithNewUser;
+                const { updatedUsers } = resultWithNewUser;
 
-                // DEDUCT POINTS IF USED
+                // DEDUCT WALLET BALANCE IF USED
                 let finalUpdatedUsers = updatedUsers;
-                if (pointsUsed > 0) {
+                if (balanceUsed_usd > 0) {
                     finalUpdatedUsers = updatedUsers.map(u => {
                         if (u.email === buyerEmail) {
-                            return { ...u, points: Math.max(0, u.points - pointsUsed) };
+                            return { ...u, walletBalance_usd: Math.max(0, u.walletBalance_usd - balanceUsed_usd) };
                         }
                         return u;
                     });
-                    showToast(`💎 ${pointsUsed} puntos canjeados = $${(pointsUsed / 100).toFixed(2)} de descuento`);
+                    showToast(`💰 $${balanceUsed_usd.toFixed(2)} pagados con Billetera Ray`);
                 }
 
                 updateUsers(finalUpdatedUsers);
                 const buyer = finalUpdatedUsers.find(u => u.email === buyerEmail);
                 if (buyer && buyer.orders.length > 0) {
                     currentOrder = buyer.orders[buyer.orders.length - 1];
-                    const link = generateWhatsAppLink(currentOrder, buyer, cart, tasaBs);
-                    window.open(link, '_blank');
+                    // NEW: Metadata for internal order
+                    currentOrder.cashierMode = isInternal;
+                    currentOrder.paymentStatus = paymentStatus;
+                    currentOrder.paymentMethod = paymentMethod;
+                    currentOrder.status = isInternal ? 'delivered' : 'pending';
+
+                    if (!isInternal) {
+                        const link = generateWhatsAppLink(currentOrder, buyer, cart, tasaBs);
+                        window.open(link, '_blank');
+                    } else {
+                        showToast("✅ PEDIDO REGISTRADO EN EL PANEL");
+                        clearCart();
+                    }
                 }
-                showToast(message + "\n🎁 " + orderSummary.pointsEarned + " Puntos procesados.");
+                showToast(message + "\n🎁 Recompensas sumadas a tu Billetera.");
             }
         } else {
             // GUEST FLOW (Standard)
@@ -317,19 +371,31 @@ const Storefront: React.FC = () => {
                     selectedOptions: item.selectedOptions
                 })),
                 pointsEarned: 0,
-                status: 'pending',
+                status: isInternal ? 'delivered' : 'pending',
                 deliveryMethod: deliveryInfo?.method || 'pickup',
                 deliveryFee: deliveryInfo?.fee || 0,
                 customerName: buyerName || "Invitado",
-                customerPhone: deliveryInfo?.phone || ""
+                customerPhone: deliveryInfo?.phone || "",
+                balanceUsed_usd: balanceUsed_usd,
+                cashierMode: isInternal,
+                paymentStatus: paymentStatus,
+                paymentMethod: paymentMethod,
+                rewardsEarned_usd: 0
             };
             addGuestOrder(currentOrder);
-            const guestUser: User = {
-                name: buyerName || "Invitado", email: buyerEmail || "Sin email", phone: deliveryInfo?.phone ? `+58${normalizePhone(deliveryInfo.phone)}` : "",
-                passwordHash: "", referralCode: "", points: 0, loyaltyTier: "Bronze", role: 'customer', orders: [currentOrder]
-            };
-            const link = generateWhatsAppLink(currentOrder, guestUser, cart, tasaBs);
-            window.open(link, '_blank');
+
+            if (!isInternal) {
+                const guestUser: User = {
+                    name: buyerName || "Invitado", email: buyerEmail || "Sin email", phone: deliveryInfo?.phone ? `+58${normalizePhone(deliveryInfo.phone)}` : "",
+                    passwordHash: "", referralCode: "", walletBalance_usd: 0, lifetimeSpending_usd: 0, loyaltyTier: "Bronze", role: 'customer', orders: [currentOrder],
+                    points: 0
+                };
+                const link = generateWhatsAppLink(currentOrder, guestUser, cart, tasaBs);
+                window.open(link, '_blank');
+            } else {
+                showToast("✅ VENTA (GUEST) REGISTRADA");
+                clearCart();
+            }
             showToast(message);
         }
 
@@ -355,11 +421,11 @@ const Storefront: React.FC = () => {
         if (currentUser && survey.userId) {
             const updatedUsers = registeredUsers.map(u =>
                 u.email === currentUser.email
-                    ? { ...u, points: u.points + 20 }
+                    ? { ...u, walletBalance_usd: (u.walletBalance_usd || 0) + 0.20 }
                     : u
             );
             updateUsers(updatedUsers);
-            showToast("¡Gracias por tu opinión! +20 puntos 🎁");
+            showToast("¡Gracias por tu opinión! +$0.20 en tu Billetera 🎁");
         } else {
             showToast("¡Gracias por tu opinión!");
         }
@@ -441,7 +507,30 @@ const Storefront: React.FC = () => {
     }, [currentUser, navigate, showToast, openLogin]);
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+        <div className="min-h-screen bg-gray-900 text-white font-sans selection:bg-orange-500 selection:text-white">
+            {/* CASHIER MODE BANNER */}
+            {isCashierMode && (
+                <div className="sticky top-0 z-[100] bg-orange-600 text-white px-4 py-2 flex items-center justify-between gap-2 shadow-xl border-b border-orange-500/30 backdrop-blur-md bg-orange-600/90">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <ShieldCheck size={18} className="shrink-0" />
+                        <span className="font-black uppercase tracking-tight text-[10px] sm:text-xs truncate">Sesión: Venta Manual</span>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                        <button
+                            onClick={clearCart}
+                            className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1 transition-all active:scale-95"
+                        >
+                            <Trash2 size={10} /> Limpiar
+                        </button>
+                        <button
+                            onClick={() => setIsCashierMode(false)}
+                            className="hover:text-white/80 transition-colors p-1"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                </div>
+            )}
             <a href={`#${SKIP_LINK_ID}`} className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:bg-orange-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-md">Saltar al contenido principal</a>
 
             <MemoizedHeader
@@ -452,8 +541,6 @@ const Storefront: React.FC = () => {
                 onOpenLogin={openLogin}
                 onLogout={handleLogout}
                 onOpenProfile={openUserProfileModal}
-                onOpenAdmin={openAdminDashboard}
-                onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
                 onOpenRoulette={() => setIsRouletteOpen(true)}
                 activeOrder={activeOrder}
             />
@@ -461,7 +548,7 @@ const Storefront: React.FC = () => {
             <main className="flex-1 flex flex-col items-center pt-24 pb-24 lg:pb-12 px-4 whitespace-normal">
                 {selectedCategory === ALL_CATEGORIES_KEY && !searchTerm && (
                     <>
-                        <HeroSection onCtaClick={() => document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' })} />
+                        <HeroSection onCtaClick={() => document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' })} user={currentUser} />
 
                         {/* CTA GIGANTE: VER MENÚ COMPLETO */}
                         <motion.div
@@ -647,6 +734,7 @@ const Storefront: React.FC = () => {
             <CheckoutModal
                 isOpen={isCheckoutOpen} onClose={closeCheckout} totalUsd={totalUsd} tasaBs={tasaBs}
                 onOrderConfirmed={handleOrderConfirmed} currentUser={currentUser}
+                isCashierMode={isCashierMode}
             />
             <RegisterModal
                 isOpen={isRegisterModalOpen}
@@ -683,7 +771,6 @@ const Storefront: React.FC = () => {
             />
             {/* AdminDashboard modal instance removed to avoid redundancy with MainRouter's /admin route */}
             <SurveyModal isOpen={isSurveyModalOpen} onClose={() => setIsSurveyModalOpen(false)} onSubmit={handleSurveySubmit} orderId={lastOrderId} userId={currentUser?.email} />
-            <LeaderboardModal isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} users={registeredUsers} />
             <RouletteModal
                 isOpen={isRouletteOpen} onClose={() => setIsRouletteOpen(false)} currentUser={currentUser}
                 onUpdateUser={(updatedUser: User) => {
@@ -694,7 +781,7 @@ const Storefront: React.FC = () => {
             />
             {isToastVisible && <Toast message={toastMessage} onClose={closeToast} />}
             <FloatingCart count={cart.length} totalUsd={totalUsd} onClick={openCart} />
-            <OrderStatusTracker order={activeOrder} onClose={() => { setActiveOrder(null); localStorage.removeItem('rayburger_active_order'); }} />
+            {activeOrder && <OrderStatusTracker order={activeOrder} onClose={() => { setActiveOrder(null); localStorage.removeItem('rayburger_active_order'); }} />}
             <InstallPrompt />
         </div>
     );

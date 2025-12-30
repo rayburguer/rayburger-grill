@@ -1,0 +1,2 @@
+﻿src/components/admin/AdminDashboard.tsx(9,5): error TS6133: 'CheckCircle2' is declared but its value is never read.
+src/components/routing/MainRouter.tsx(11,13): error TS6133: 'currentUser' is declared but its value is never read.

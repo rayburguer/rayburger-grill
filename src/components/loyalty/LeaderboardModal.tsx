@@ -11,9 +11,9 @@ interface LeaderboardModalProps {
 }
 
 const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onClose, users }) => {
-    // Sort users by points DESC and take top 10
+    // Sort users by lifetimeSpending_usd DESC and take top 10
     const topUsers = [...users]
-        .sort((a, b) => b.points - a.points)
+        .sort((a, b) => (b.lifetimeSpending_usd || 0) - (a.lifetimeSpending_usd || 0))
         .slice(0, 10);
 
     const getRankIcon = (index: number) => {
@@ -26,10 +26,10 @@ const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onClose, us
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="🏆 La Carrera: Top 10 Clientes">
+        <Modal isOpen={isOpen} onClose={onClose} title="🏆 Los Reyes del Grill: Top 10 Clientes">
             <div className="mb-6 bg-gradient-to-br from-orange-600/20 to-transparent p-4 rounded-2xl border border-orange-500/30 text-center">
-                <p className="text-gray-300 text-sm mb-1">El ranking oficial de la comunidad</p>
-                <h3 className="text-2xl font-anton text-white uppercase tracking-wider">¡El Top 3 gana premios cada semana!</h3>
+                <p className="text-gray-300 text-sm mb-1">Ranking basado en consumo acumulado</p>
+                <h3 className="text-xl font-anton text-white uppercase tracking-wider">¡El Top 3 recibe sorpresas exclusivas!</h3>
             </div>
 
             <div className="relative">
@@ -55,14 +55,14 @@ const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onClose, us
                                     <div>
                                         <p className={`font-bold ${index === 0 ? 'text-yellow-500 text-lg' : 'text-white'}`}>
                                             {user.name.split(' ')[0]}
-                                            {index === 0 && <span className="ml-2 text-[10px] uppercase tracking-tighter bg-yellow-500 text-black px-1 rounded">Rey del Grill</span>}
+                                            {index === 0 && <span className="ml-2 text-[10px] uppercase tracking-tighter bg-yellow-500 text-black px-1 rounded">Gran Maestro</span>}
                                         </p>
                                         <p className="text-xs text-gray-400 uppercase tracking-widest">{user.loyaltyTier}</p>
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="font-anton text-xl text-orange-500">{user.points}</p>
-                                    <p className="text-[10px] text-gray-500 uppercase font-bold">Puntos</p>
+                                    <p className="font-anton text-xl text-orange-500">${(user.lifetimeSpending_usd || 0).toFixed(2)}</p>
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold">Consumo</p>
                                 </div>
                             </motion.div>
                         ))
@@ -96,15 +96,15 @@ const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onClose, us
                 <ul className="text-sm text-gray-300 space-y-2 relative z-10">
                     <li className="flex items-start gap-2">
                         <span className="text-orange-500 font-bold">⚡</span>
-                        Gana puntos en cada compra (3%, 5% o 8% según tu nivel).
+                        Cada pedido cuenta para tu Gasto Total Acumulado.
                     </li>
                     <li className="flex items-start gap-2">
                         <span className="text-orange-500 font-bold">⚡</span>
-                        Refiere amigos y gana un 2% de SALDO en efectivo por sus compras.
+                        Sube de Nivel (Silver, Gold) para ganar más recompensas en dólares.
                     </li>
                     <li className="flex items-start gap-2">
                         <span className="text-orange-500 font-bold">⚡</span>
-                        ¡Escala posiciones para ganar premios exclusivos cada semana!
+                        ¡Llega a la cima para ser reconocido como el Rey del Grill!
                     </li>
                 </ul>
             </div>

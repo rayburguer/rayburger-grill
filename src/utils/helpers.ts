@@ -5,10 +5,9 @@ export const generateUuid = () => {
     });
 };
 
-export const calculateLoyaltyTier = (points: number): string => {
-    if (points >= 10000) return 'Platinum'; // $1000 spend
-    if (points >= 5000) return 'Gold';      // $500 spend
-    if (points >= 1000) return 'Silver';    // $100 spend
+export const calculateLoyaltyTier = (totalSpend: number): string => {
+    if (totalSpend >= 500) return 'Gold';
+    if (totalSpend >= 100) return 'Silver';
     return 'Bronze';
 };
 
@@ -22,28 +21,42 @@ export const formatCurrency = (amount: number, currency = 'USD') => {
 }
 
 /**
- * Normalizes Venezuelan phone numbers to a standard 10-digit format (e.g., 4121234567).
- * Removes prefixes like +58, 58, 0, and non-digit characters.
+ * Normalizes phone numbers to a standard format.
+ * Defaults to Venezuela (+58) if no prefix is detected.
+ * Returns only the significant digits (usually 10 for LatAm).
  */
 export const normalizePhone = (phone: string): string => {
+    if (!phone) return '';
+
     // Remove all non-digits
     let digits = phone.replace(/\D/g, '');
 
-    // If it starts with 58 (e.g. 58412...), remove it
-    if (digits.startsWith('58') && digits.length > 10) {
+    // Common international prefixes: 58 (VE), 57 (CO), 1 (US), etc.
+    // If it starts with 58, remove it to get the 10-digit base
+    if (digits.startsWith('58') && (digits.length === 12 || digits.length === 13)) {
         digits = digits.substring(2);
-    }
-
-    // If it starts with 0 (e.g. 0412...), remove it
-    if (digits.startsWith('0') && digits.length > 10) {
+    } else if (digits.startsWith('0') && digits.length > 10) {
+        // Remove leading zero if it makes it longer than 10 digits
         digits = digits.substring(1);
     }
 
-    // Standard Venezuelan numbers are usually 10 digits (412-123-4567)
-    // If we have more than 10, take the last 10
+    // Capture only the last 10 digits as the core identifier for most LatAm/US numbers
     if (digits.length > 10) {
         digits = digits.slice(-10);
     }
 
     return digits;
+};
+
+/**
+ * Generates a simple device fingerprint to prevent basic multi-account fraud.
+ * Stores it in localStorage.
+ */
+export const getDeviceFingerprint = (): string => {
+    let fp = localStorage.getItem('rb_device_fp');
+    if (!fp) {
+        fp = Array.from({ length: 16 }, () => Math.floor(Math.random() * 36).toString(36)).join('');
+        localStorage.setItem('rb_device_fp', fp);
+    }
+    return fp;
 };

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Order, Product } from '../../types';
 // import { useAuth } from '../../hooks/useAuth'; // REMOVED
 import { useLoyalty } from '../../hooks/useLoyalty';
-import { Search, Trash2 } from 'lucide-react';
+import { Search, Trash2, Clock, CheckCircle2, ChevronRight, DollarSign, PackageCheck } from 'lucide-react';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { useCloudSync } from '../../hooks/useCloudSync';
 
@@ -13,14 +13,13 @@ interface OrderManagementProps {
     updateGuestOrders: (updatedOrders: Order[]) => void;
     highlightOrderId?: string; // For deep linking
     allProducts: Product[]; // NEW: To resolve option names
-    pushToCloud: (table: string, data: any[]) => Promise<any>;
 }
 
 export const OrderManagement: React.FC<OrderManagementProps> = ({
-    registeredUsers, updateUsers, guestOrders, updateGuestOrders, highlightOrderId, allProducts, pushToCloud
+    registeredUsers, updateUsers, guestOrders, updateGuestOrders, highlightOrderId, allProducts
 }) => {
     const { confirmOrderRewards, rejectOrder } = useLoyalty();
-    const { deleteFromCloud } = useCloudSync();
+    const { deleteFromCloud, replaceInCloud } = useCloudSync();
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState<'pending' | 'received' | 'preparing' | 'shipped' | 'payment_confirmed' | 'approved' | 'rejected' | 'all'>('pending');
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['today', 'yesterday', 'thisWeek', 'older'])); // Default ALL OPEN // Default: only "today" expanded
@@ -65,7 +64,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 updateGuestOrders(updated);
                 // SYNC guest orders
                 const targetOrder = updated.find(o => o.orderId === orderId);
-                if (targetOrder) pushToCloud('rb_orders', [{ ...targetOrder, id: targetOrder.orderId }]);
+                if (targetOrder) replaceInCloud('rb_orders', [{ ...targetOrder, id: targetOrder.orderId }]);
             } else {
                 const updatedUsers = rejectOrder(orderId, userEmail, registeredUsers);
                 updateUsers(updatedUsers);
@@ -303,10 +302,28 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                         <p className="text-sm text-gray-400">
                             {new Date(order.timestamp).toLocaleString()} • {order.userName} ({order.userEmail})
                         </p>
+                        {/* DEBT INDICATOR */}
+                        {order.status !== 'approved' && order.status !== 'rejected' && order.paymentStatus === 'pending' && (
+                            <div className="mt-2 flex items-center gap-2 bg-red-900/30 border border-red-500/30 px-3 py-1 rounded-full w-fit animate-pulse">
+                                <Clock size={12} className="text-red-500" />
+                                <span className="text-[10px] font-black text-red-400 uppercase tracking-widest">Cuenta Abierta / Por Cobrar</span>
+                            </div>
+                        )}
+                        {order.status !== 'approved' && order.status !== 'rejected' && order.paymentStatus === 'paid' && (
+                            <div className="mt-2 flex items-center gap-2 bg-green-900/20 border border-green-500/20 px-3 py-1 rounded-full w-fit">
+                                <CheckCircle2 size={12} className="text-green-500" />
+                                <span className="text-[10px] font-black text-green-500 uppercase tracking-widest">Pago Verificado</span>
+                            </div>
+                        )}
                     </div>
                     <div className="text-right">
                         <p className="text-xl font-bold text-white">${order.totalUsd.toFixed(2)}</p>
-                        {!order.isGuest && <p className="text-sm text-orange-400">+{order.pointsEarned} Pts Pendientes</p>}
+                        {!order.isGuest && order.status !== 'approved' && order.rewardsEarned_usd && (
+                            <p className="text-[10px] text-orange-400 font-bold uppercase tracking-tighter">+${order.rewardsEarned_usd.toFixed(2)} Reward</p>
+                        )}
+                        {order.balanceUsed_usd && order.balanceUsed_usd > 0 && (
+                            <p className="text-[10px] text-red-400 font-bold uppercase tracking-tighter">-${order.balanceUsed_usd.toFixed(2)} Wallet</p>
+                        )}
                     </div>
                 </div>
 
@@ -353,8 +370,30 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 {
                     order.status !== 'rejected' && order.status !== 'approved' && (
                         <div className="flex flex-col gap-3 mt-4">
-                            {/* STEP 1: PENDING -> DELIVERED */}
+                            {/* NEW STEP 1: PENDING -> PREPARING */}
                             {(!order.status || order.status === 'pending') && (
+                                <button
+                                    onClick={() => {
+                                        const newStatus = 'preparing';
+                                        const updated = order.isGuest
+                                            ? guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: newStatus as any } : o)
+                                            : registeredUsers.map(u => u.email === order.userEmail ? { ...u, orders: u.orders.map(o => o.orderId === order.orderId ? { ...o, status: newStatus as any } : o) } : u);
+
+                                        if (order.isGuest) {
+                                            updateGuestOrders(updated as Order[]);
+                                            replaceInCloud('rb_orders', [{ ...order, status: newStatus, id: order.orderId }]);
+                                        } else {
+                                            updateUsers(updated as User[]);
+                                        }
+                                    }}
+                                    className="w-full py-4 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-black text-lg shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95"
+                                >
+                                    <ChevronRight size={24} /> ACEPTAR Y PREPARAR
+                                </button>
+                            )}
+
+                            {/* NEW STEP 2: PREPARING -> DELIVERED (Notification) */}
+                            {order.status === 'preparing' && (
                                 <button
                                     onClick={() => {
                                         const newStatus = 'delivered';
@@ -364,86 +403,67 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
                                         if (order.isGuest) {
                                             updateGuestOrders(updated as Order[]);
-                                            // SYNC guest orders to rb_orders
-                                            pushToCloud('rb_orders', [{ ...order, status: newStatus, id: order.orderId }]);
+                                            replaceInCloud('rb_orders', [{ ...order, status: newStatus, id: order.orderId }]);
                                         } else {
                                             updateUsers(updated as User[]);
-                                            // NOTE: Registered user orders are synced via rb_users
                                         }
                                     }}
-                                    className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black text-lg shadow-lg flex items-center justify-center gap-2"
+                                    className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-lg shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95"
                                 >
-                                    🚚 MARCAR ENTREGADO
+                                    <PackageCheck size={24} /> LISTO PARA ENTREGAR
                                 </button>
                             )}
 
-                            {/* STEP 2: DELIVERED -> APPROVED (Final & Points) */}
+                            {/* STEP 3: DELIVERED -> APPROVED (Final & Points) */}
                             {order.status === 'delivered' && (
                                 <button
                                     onClick={async () => {
-                                        if (!confirm('¿Confirmar pago recibido y otorgar puntos?')) return;
+                                        const confirmMsg = order.paymentStatus === 'pending'
+                                            ? '¿Confirmar que el cliente YA PAGÓ y cerrar cuenta?'
+                                            : '¿Cerrar cuenta y liberar puntos?';
+
+                                        if (!confirm(confirmMsg)) return;
 
                                         setIsProcessing(true);
                                         try {
-                                            // Timeout protection: 10 seconds max
-                                            const processWithTimeout = Promise.race([
-                                                (async () => {
-                                                    console.log('🔍 DEBUG: Aprobando pedido', { orderId: order.orderId, isGuest: order.isGuest, userEmail: order.userEmail });
-
-                                                    if (order.isGuest) {
-                                                        const updated = guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: 'approved' as const } : o);
-                                                        updateGuestOrders(updated);
-                                                        await pushToCloud('rb_orders', [{ ...order, status: 'approved', id: order.orderId }]);
-                                                        console.log('✅ Guest order approved and synced');
-                                                    } else {
-                                                        console.log('🔍 Calling confirmOrderRewards...');
-                                                        const targetUser = registeredUsers.find(u => u.email === order.userEmail);
-                                                        if (!targetUser) {
-                                                            alert(`⛔ ERROR DE DIAGNÓSTICO:\n\nEl usuario "${order.userEmail}" NO se encuentra en la lista local de ${registeredUsers.length} usuarios.\n\nSOLUCIÓN: Recarga la página (F5) para descargar la lista actualizada o revisa la pestaña CLOUD.`);
-                                                            throw new Error('Usuario no encontrado localmente');
-                                                        }
-                                                        const updatedUsers = confirmOrderRewards(order.orderId, order.userEmail, registeredUsers);
-                                                        console.log('🔍 Updated users:', updatedUsers.find(u => u.email === order.userEmail)?.orders.find(o => o.orderId === order.orderId));
-                                                        updateUsers(updatedUsers);
-                                                        console.log('✅ Registered user order approved and synced via rb_users');
-                                                    }
-                                                    // CONFETTI CELEBRATION! 🎊
-                                                    triggerSuccessConfetti();
-                                                    console.log('🎊 Confetti triggered!');
-                                                })(),
-                                                new Promise((_, reject) =>
-                                                    setTimeout(() => reject(new Error('Timeout: La operación tardó demasiado')), 10000)
-                                                )
-                                            ]);
-
-                                            await processWithTimeout;
+                                            if (order.isGuest) {
+                                                const updated = guestOrders.map(o => o.orderId === order.orderId ? { ...o, status: 'approved' as const, paymentStatus: 'paid' as const } : o);
+                                                updateGuestOrders(updated);
+                                                await replaceInCloud('rb_orders', [{ ...order, status: 'approved', paymentStatus: 'paid', id: order.orderId }]);
+                                            } else {
+                                                const updatedUsers = confirmOrderRewards(order.orderId, order.userEmail, registeredUsers);
+                                                // Ensure the order in user object also gets paymentStatus: 'paid'
+                                                const finalUsers = updatedUsers.map(u => u.email === order.userEmail ? {
+                                                    ...u,
+                                                    orders: u.orders.map(o => o.orderId === order.orderId ? { ...o, paymentStatus: 'paid' as const } : o)
+                                                } : u);
+                                                updateUsers(finalUsers);
+                                            }
+                                            triggerSuccessConfetti();
                                         } catch (error) {
-                                            console.error('❌ Error al aprobar pedido:', error);
-                                            const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
-                                            alert(`⚠️ Error al procesar:\n${errorMsg}\n\nIntenta de nuevo o contacta soporte.`);
+                                            console.error('Error al cerrar cuenta:', error);
                                         } finally {
-                                            // ALWAYS reset to unblock button
                                             setIsProcessing(false);
                                         }
                                     }}
                                     disabled={isProcessing}
-                                    className={`w-full py-4 rounded-xl font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] flex items-center justify-center gap-2 transform active:scale-95 transition-all ${isProcessing
-                                        ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                                    className={`w-full py-4 rounded-xl font-black text-lg shadow-lg flex items-center justify-center gap-3 transform transition-all active:scale-95 ${order.paymentStatus === 'pending'
+                                        ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse'
                                         : 'bg-green-600 hover:bg-green-500 text-white'
                                         }`}
                                 >
-                                    {isProcessing ? '⏳ PROCESANDO...' : '✅ PAGO RECIBIDO / CERRAR (NUEVO)'}
+                                    <DollarSign size={24} />
+                                    {order.paymentStatus === 'pending' ? 'CONFIRMAR PAGO Y CERRAR' : 'CERRAR CUENTA'}
                                 </button>
                             )}
 
-                            {/* FORCE CLOSE BUTTON - The nuclear option */}
                             {/* REJECT BUTTON */}
-                            {(!order.status || order.status === 'pending' || order.status === 'delivered') && (
+                            {(!order.status || order.status === 'pending' || order.status === 'preparing' || order.status === 'delivered') && (
                                 <button
                                     onClick={() => handleReject(order.orderId, order.userEmail, order.isGuest)}
-                                    className="w-full py-2 text-gray-400 hover:text-red-400 text-xs font-bold uppercase tracking-widest transition-colors"
+                                    className="w-full py-2 text-gray-500 hover:text-red-400 text-xs font-bold uppercase tracking-widest transition-colors"
                                 >
-                                    Rechazar Pedido
+                                    Rechazar / Cancelar
                                 </button>
                             )}
                         </div>

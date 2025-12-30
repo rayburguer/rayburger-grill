@@ -19,7 +19,7 @@ const AdminRoute: React.FC = () => {
 
             // 2. Fallback: Double check with Supabase DB directly (secure check)
             // This prevents "flicker" if context is slow to load
-            if (currentUser?.email) {
+            if (currentUser?.email && supabase) {
                 const { data } = await supabase
                     .from('rb_users')
                     .select('role')

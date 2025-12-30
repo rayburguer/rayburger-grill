@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { User } from '../types';
 import { calculateLoyaltyTier, normalizePhone } from '../utils/helpers';
-import { debounce, safeLocalStorage } from '../utils/debounce';
+import { safeLocalStorage } from '../utils/debounce';
 import { hashPassword, isLegacyPassword } from '../utils/security';
 import { useCloudSync } from '../hooks/useCloudSync';
 
@@ -19,29 +19,25 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
-    const { pushToCloud } = useCloudSync();
+    const { pushToCloud, pullFromCloud } = useCloudSync();
 
     // Flag to prevent recursive updates between sync cycles
     const isUpdatingRef = useRef(false);
     const syncAttemptsRef = useRef(0);
     const lastSyncTimeRef = useRef(Date.now());
 
-    // Debounced localStorage save functions
-    const saveUsersDebounced = useRef(
-        debounce((users: User[]) => {
-            safeLocalStorage.setItem('rayburger_registered_users', JSON.stringify(users));
-        }, 500)
-    ).current;
+    // Immediate localStorage save functions to avoid race conditions during refresh
+    const saveUsersImmediate = useCallback((users: User[]) => {
+        safeLocalStorage.setItem('rayburger_registered_users', JSON.stringify(users));
+    }, []);
 
-    const saveCurrentUserDebounced = useRef(
-        debounce((user: User | null) => {
-            if (user) {
-                safeLocalStorage.setItem('rayburger_current_user', JSON.stringify(user));
-            } else {
-                safeLocalStorage.removeItem('rayburger_current_user');
-            }
-        }, 300)
-    ).current;
+    const saveCurrentUserImmediate = useCallback((user: User | null) => {
+        if (user) {
+            safeLocalStorage.setItem('rayburger_current_user', JSON.stringify(user));
+        } else {
+            safeLocalStorage.removeItem('rayburger_current_user');
+        }
+    }, []);
 
     // Load data from localStorage on mount ONLY
     useEffect(() => {
@@ -86,12 +82,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }, []);
 
-    // Save registeredUsers to localStorage
+    // Initial reconciliation with Cloud to ensure truth is preserved
+    const initialSyncRef = useRef(false);
+    useEffect(() => {
+        if (!initialSyncRef.current && navigator.onLine) {
+            initialSyncRef.current = true;
+            console.log("☁️ Initializing Cloud Reconciliation...");
+            pullFromCloud();
+        }
+    }, [pullFromCloud]);
+
+    // Save registeredUsers to localStorage (Immediate for critical consistency)
     useEffect(() => {
         if (registeredUsers.length > 0) {
-            saveUsersDebounced(registeredUsers);
+            saveUsersImmediate(registeredUsers);
         }
-    }, [registeredUsers, saveUsersDebounced]);
+    }, [registeredUsers, saveUsersImmediate]);
 
     // Sync currentUser with registeredUsers
     useEffect(() => {
@@ -123,13 +129,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 if (hasCriticalChanges) {
                     isUpdatingRef.current = true;
                     setCurrentUser(updatedUserInList);
-                    saveCurrentUserDebounced(updatedUserInList);
+                    saveCurrentUserImmediate(updatedUserInList);
                     // cooldown to prevent rapid-fire updates
                     setTimeout(() => { isUpdatingRef.current = false; }, 300);
                 }
             }
         }
-    }, [registeredUsers, currentUser, saveCurrentUserDebounced]);
+    }, [registeredUsers, currentUser, saveCurrentUserImmediate]);
+
+    // --- REALTIME LISTENER FOR SUPABASE ---
+    useEffect(() => {
+        if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
+            console.log("🔌 Initializing Supabase Realtime Listener...");
+        }
+
+        // Subscribe to changes in rb_users
+        import('../lib/supabase').then(({ supabase }) => {
+            if (!supabase) return;
+
+            const channel = supabase
+                .channel('public:rb_users')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'rb_users' }, (payload) => {
+                    console.log('⚡ Realtime change received:', payload);
+
+                    if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+                        // Dispatch event to force reload or update internal state
+                        // Dispatch event to force reload or update internal state
+                        // merging logic should happen in useCloudSync's pull or here directly for simple updates
+                        // Ideally trigger a pull to handle complex merging
+                        window.dispatchEvent(new CustomEvent('rayburger_users_updated', { detail: { source: 'realtime' } }));
+                    }
+                })
+                .subscribe();
+
+            return () => {
+                supabase.removeChannel(channel);
+            };
+        });
+    }, []);
 
     // Sync with other tabs/instances via storage events
     useEffect(() => {
@@ -182,17 +219,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
     }, [registeredUsers]);
 
+
+
     const login = useCallback(async (identifier: string, password: string) => {
         const inputHash = await hashPassword(password);
         const normalizedIdentifier = normalizePhone(identifier);
+
         let userIndex = registeredUsers.findIndex(u => (u.email === identifier || normalizePhone(u.phone) === normalizedIdentifier));
+        let user: User | undefined = registeredUsers[userIndex];
 
-        if (userIndex === -1) return null;
+        // FALLBACK: If not found locally, try fetching from Supabase
+        if (!user) {
+            console.log("☁️ User not found locally, checking Supabase...");
+            const { supabase } = await import('../lib/supabase');
+            if (supabase) {
+                const { data, error } = await supabase
+                    .from('rb_users')
+                    .select('*')
+                    .or(`email.eq.${identifier},phone.eq.${normalizedIdentifier}`) // Check both
+                    .single();
 
-        const user = registeredUsers[userIndex];
+                if (data && !error) {
+                    console.log("✅ User found in Cloud:", data.email);
+                    user = data as User;
+                    // We don't add to registeredUsers yet, valid logic will do it below if password matches
+                }
+            }
+        }
+
+        if (!user) return null;
+
         let isAuthenticated = false;
         let needsMigration = false;
 
+        // Check password (supports legacy)
         if (user.passwordHash === inputHash) {
             isAuthenticated = true;
         } else if (isLegacyPassword(user.passwordHash) && user.passwordHash === password) {
@@ -203,18 +263,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (isAuthenticated) {
             let userToLogin = user;
             if (needsMigration) {
-                const updatedUser = { ...user, passwordHash: inputHash };
-                const newUsersList = [...registeredUsers];
-                newUsersList[userIndex] = updatedUser;
-                setRegisteredUsers(newUsersList);
-                userToLogin = updatedUser;
+                userToLogin = { ...user, passwordHash: inputHash };
             }
+
+            // Update Local State if we fetched from cloud or migrated
+            setRegisteredUsers(prev => {
+                const existingIdx = prev.findIndex(u => u.email === userToLogin.email);
+                if (existingIdx >= 0) {
+                    const newList = [...prev];
+                    newList[existingIdx] = userToLogin;
+                    return newList;
+                }
+                return [...prev, userToLogin];
+            });
+
             setCurrentUser(userToLogin);
-            saveCurrentUserDebounced(userToLogin);
+            saveCurrentUserImmediate(userToLogin);
+
+            // Sync this single user update back to cloud if migrated
+            if (needsMigration) {
+                pushToCloud('rb_users', [userToLogin]);
+            }
+
             return userToLogin;
         }
         return null;
-    }, [registeredUsers, saveCurrentUserDebounced]);
+    }, [registeredUsers, saveCurrentUserImmediate, pushToCloud]);
 
     const logout = useCallback(() => {
         setCurrentUser(null);
@@ -227,8 +301,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // Robust Check: Compare against normalized stored phones
         if (registeredUsers.some(u => normalizePhone(u.phone) === normalizedPhone || u.email === newUserInput.email)) {
-            console.warn("User already exists (Phone/Email match)");
+            console.warn("User already exists locally (Phone/Email match)");
             return false;
+        }
+
+        // CLOUD CHECK: Prevent duplicates against Supabase
+        const { supabase } = await import('../lib/supabase');
+        if (supabase) {
+            const { data } = await supabase
+                .from('rb_users')
+                .select('id')
+                .or(`email.eq.${newUserInput.email},phone.eq.${normalizedPhone}`)
+                .maybeSingle(); // Use maybeSingle to avoid 406 error if none found
+
+            if (data) {
+                console.warn("⛔ User already exists in Supabase!");
+                return false;
+            }
         }
 
         const passwordHash = await hashPassword(newUserInput.passwordHash);
@@ -254,25 +343,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const updatedList = [...registeredUsers, newUser];
         setRegisteredUsers(updatedList);
         setCurrentUser(newUser);
-        saveCurrentUserDebounced(newUser);
+        saveCurrentUserImmediate(newUser);
 
         // Instant sync for new user
         const usersToSync = updatedList.map(u => ({ ...u, id: u.email }));
         await pushToCloud('rb_users', usersToSync);
 
         return true;
-    }, [registeredUsers, saveCurrentUserDebounced, pushToCloud]);
+    }, [registeredUsers, saveCurrentUserImmediate, pushToCloud]);
 
     const updateUsers = useCallback(async (users: User[]) => {
         setRegisteredUsers(users);
-        saveUsersDebounced(users);
+        saveUsersImmediate(users); // Instant local persistence
         // Instant sync for critical user data (points, roles, etc)
         const usersToSync = users.map(u => ({ ...u, id: u.email }));
         await pushToCloud('rb_users', usersToSync);
 
         // Notify other components in the same tab, but mark the source
         window.dispatchEvent(new CustomEvent('rayburger_users_updated', { detail: { source: 'useAuth' } }));
-    }, [pushToCloud, saveUsersDebounced]); // Fixed dependency
+    }, [pushToCloud, saveUsersImmediate]); // Fixed dependency
 
     return (
         <AuthContext.Provider value={{

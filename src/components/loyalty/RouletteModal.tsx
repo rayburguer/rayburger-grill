@@ -204,21 +204,28 @@ const RouletteModal: React.FC<RouletteModalProps> = ({ isOpen, onClose, currentU
                                 return (
                                     <div
                                         key={p.id}
-                                        className="absolute w-[50%] h-[50%] top-0 right-0 origin-bottom-left flex items-start justify-center pt-8"
+                                        className="absolute w-[50%] h-[50%] top-0 right-0 origin-bottom-left"
                                         style={{
                                             transform: `rotate(${angle}deg) skewY(-${skewY}deg)`,
                                             backgroundColor: p.color,
                                             borderLeft: '2px solid rgba(0,0,0,0.2)',
+                                            boxShadow: 'inset 0 0 20px rgba(0,0,0,0.2)'
                                         }}
                                     >
                                         <div
-                                            className="font-black text-white text-sm tracking-tighter flex flex-col items-center gap-1"
+                                            className="absolute bottom-0 left-0 flex flex-col items-center justify-center text-center w-full h-full"
                                             style={{
-                                                transform: `skewY(${skewY}deg) rotate(${360 / ROULETTE_PRIZES.length / 2}deg) translate(25px, 0) rotate(90deg)`,
+                                                // Adjust translation to 65px to pull it away from the edge but keep it visible
+                                                // Center of wedge is at 30deg.
+                                                // We skew/rotate the CONTAINER, but here we counter-act.
+                                                transform: `skewY(${skewY}deg) rotate(${360 / ROULETTE_PRIZES.length / 2}deg) translate(65px, 0) rotate(90deg)`,
+                                                transformOrigin: 'bottom left',
+                                                width: '60px',
+                                                height: '40px'
                                             }}
                                         >
-                                            <span className="opacity-80 text-[10px] uppercase">{p.type === 'points' ? 'Pts' : p.type === 'cashback' ? 'USD' : ''}</span>
-                                            <span className="text-lg">{p.value === 0 ? 'X' : p.value}</span>
+                                            <span className="opacity-90 text-[10px] uppercase font-bold text-white drop-shadow-md">{p.type === 'usd' ? 'Ray' : ''}</span>
+                                            <span className="text-lg font-black text-white drop-shadow-md whitespace-nowrap">{p.value === 0 ? '😢' : `$${p.value}`}</span>
                                         </div>
                                     </div>
                                 )

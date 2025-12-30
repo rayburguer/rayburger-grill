@@ -1,5 +1,5 @@
 import { Order, User, CartItem } from '../types';
-import { WHATSAPP_NUMBER } from '../config/constants';
+import { WHATSAPP_NUMBER, PAGO_MOVIL_BANK, PAGO_MOVIL_ID, PAGO_MOVIL_PHONE } from '../config/constants';
 
 export const generateWhatsAppLink = (
     order: Order,
@@ -39,12 +39,16 @@ export const generateWhatsAppLink = (
         message += `🛵 *Delivery:* $${order.deliveryFee.toFixed(2)}\n`;
     }
 
+    if (order.balanceUsed_usd && order.balanceUsed_usd > 0) {
+        message += `💰 *Billetera Ray Usada:* -$${order.balanceUsed_usd.toFixed(2)}\n`;
+    }
+
     message += `\n💰 *TOTAL A PAGAR: $${order.totalUsd.toFixed(2)}*\n`;
-    message += `🇻🇪 *TOTAL EN BS: ${totalBs} Bs.*\n`;
+    message += `\n🇻🇪 *TOTAL EN BS: ${totalBs} Bs.*\n`;
     message += `_(Tasa: ${tasaBs.toFixed(2)} Bs/$)_\n`;
 
-    if (!isGuest) {
-        message += `\n🎁 *Puntos Ganados:* +${order.pointsEarned}\n`;
+    if (!isGuest && order.rewardsEarned_usd) {
+        message += `\n🎁 *Recompensa en Billetera:* +$${order.rewardsEarned_usd.toFixed(2)}\n`;
     }
 
     message += `\n👤 *Datos del Cliente:*\n`;
@@ -56,25 +60,10 @@ export const generateWhatsAppLink = (
     message += order.deliveryMethod === 'delivery' ? `🛵 Envío a Domicilio` : `🏠 Retiro en Local`;
 
     message += `\n\n🛰️ *Rastreo en Vivo:* Puedo ver el progreso de mi pedido en tiempo real en la Web.`;
-    message += `\n\n💸 *DATOS PARA PAGO MÓVIL:*\n`;
-    message += `🏛️ *Banco Mercantil / Venezuela*\n`;
-    message += `🆔 *C.I:* 13.412.781\n`;
-    message += `📱 *Teléfono:* 0424-3439729\n`; // Used the number from context "0422" seemed like a typo (0424 is more common prefix in Vzla), but user said "0422". WAIT. User wrote "04228344594" in prompt. But prompt says "04128344594" in context? Let me check prompt.
-    // User Prompt: "04228344594". This is unusual. Standard is 0412, 0414, 0424. 
-    // Wait, earlier context says "04128344594". The "2" key is above/near "1". 
-    // And "04243439729".
-    // Let's use the USER'S EXACT INPUT from THIS prompt but corrected if obvious typo?
-    // User said: "04228344594". This looks like a typo for 0412-834-4594 (which is in masterPhones list) OR 0424.
-    // Let me check masterPhones. '04128344594', '04243439729'.
-    // User wrote: "04228344594" -> Likely 0412-834-4594 (Raimundo).
-    // User wrote C.I: 13412781.
-    // Let's safe bet: Use the one explicitly provided in prompt "0422...", but I suspect it's 0412.
-    // Actually, looking at previous context, 04128344594 is Raimundo.
-    // Let's put both options found in previous context if reliable, or just the one requested.
-    // "banco mercantil o Venezuela cédula 13412781 Teléfono 04228344594"
-    // I will use 0412-834-4594 as it assumes 0422 was a typo for 0412 (common key slip).
-    // And 13.412.781.
-    message += `📱 *Teléfono:* 0412-8344594\n`;
+    message += `\n💸 *DATOS PARA PAGO MÓVIL:*\n`;
+    message += `🏛️ *${PAGO_MOVIL_BANK}*\n`;
+    message += `🆔 *C.I:* ${PAGO_MOVIL_ID}\n`;
+    message += `📱 *Teléfono:* ${PAGO_MOVIL_PHONE}\n`;
     message += `_(Enviar capture por aquí para confirmar)_`;
 
     // Deep link: FIXED to use current origin

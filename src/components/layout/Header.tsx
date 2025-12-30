@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'; // FORCE REBUILD TIMESTAMP 2025-12-22
-import { ShoppingCart, LogIn, LogOut, UserCircle, Clock, CheckCircle, Trophy, Menu } from 'lucide-react';
+import React, { useState } from 'react'; // FORCE REBUILD TIMESTAMP 2025-12-22
+import { ShoppingCart, LogIn, LogOut, UserCircle, Clock, CheckCircle, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Order } from '../../types';
 import MobileMenu from './MobileMenu';
@@ -12,8 +12,6 @@ interface HeaderProps {
     onOpenLogin: () => void;
     onLogout: () => void;
     onOpenProfile: () => void;
-    onOpenAdmin?: () => void;
-    onOpenLeaderboard?: () => void;
     onOpenRoulette?: () => void;
     activeOrder?: Order | null;
 }
@@ -26,8 +24,6 @@ const Header: React.FC<HeaderProps> = ({
     onOpenLogin,
     onLogout,
     onOpenProfile,
-    onOpenAdmin,
-    onOpenLeaderboard,
     onOpenRoulette,
     activeOrder
 }) => {
@@ -186,7 +182,6 @@ const Header: React.FC<HeaderProps> = ({
             <MobileMenu
                 isOpen={isMobileMenuOpen}
                 onClose={() => setIsMobileMenuOpen(false)}
-                onOpenLeaderboard={onOpenLeaderboard || (() => { })}
                 onOpenRoulette={onOpenRoulette || (() => { })}
             />
         </header>

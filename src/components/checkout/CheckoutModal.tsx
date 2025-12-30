@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Loader2 } from 'lucide-react';
+import { Loader2, Clock, X } from 'lucide-react';
 import Modal from '../ui/Modal';
 import { User } from '../../types';
+import { PAGO_MOVIL_BANK, PAGO_MOVIL_ID, PAGO_MOVIL_PHONE } from '../../config/constants';
+import { normalizePhone } from '../../utils/helpers';
 
 
 interface CheckoutModalProps {
@@ -9,52 +11,87 @@ interface CheckoutModalProps {
     onClose: () => void;
     totalUsd: number;
     tasaBs: number;
-    onOrderConfirmed: (buyerEmail: string, buyerName?: string, deliveryInfo?: { method: 'delivery' | 'pickup', fee: number, phone: string }, newRegistrationData?: { password: string }, pointsUsed?: number) => void;
+    onOrderConfirmed: (
+        buyerEmail: string,
+        buyerName?: string,
+        deliveryInfo?: { method: 'delivery' | 'pickup', fee: number, phone: string },
+        newRegistrationData?: { password: string },
+        balanceUsed_usd?: number,
+        isInternal?: boolean,
+        paymentStatus?: 'pending' | 'paid',
+        paymentMethod?: 'cash' | 'pago_movil' | 'zelle' | 'other' | 'whatsapp_link'
+    ) => void;
     currentUser: User | null;
+    isCashierMode?: boolean;
 }
 
-const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd, tasaBs, onOrderConfirmed, currentUser }) => {
+const COUNTRY_PREFIXES = [
+    { code: '58', country: 'Venezuela', flag: '🇻🇪' },
+    { code: '57', country: 'Colombia', flag: '🇨🇴' },
+    { code: '1', country: 'USA/Canadá', flag: '🇺🇸' },
+    { code: '34', country: 'España', flag: '🇪🇸' },
+    { code: '56', country: 'Chile', flag: '🇨🇱' },
+    { code: '593', country: 'Ecuador', flag: '🇪🇨' },
+    { code: '51', country: 'Perú', flag: '🇵🇪' },
+    { code: '54', country: 'Argentina', flag: '🇦🇷' },
+];
+
+const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd, tasaBs, onOrderConfirmed, currentUser, isCashierMode }) => {
     // STEP STATE
     const [currentStep, setCurrentStep] = useState<1 | 2>(1);
 
     // No more payment method selection (handled via WhatsApp)
     const [buyerName, setBuyerName] = useState<string>(currentUser?.name || '');
     const [buyerEmail, setBuyerEmail] = useState<string>(currentUser?.email || '');
+    const [phonePrefix, setPhonePrefix] = useState<string>('58');
     const [buyerPhone, setBuyerPhone] = useState<string>(currentUser?.phone || '');
     const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('pickup');
     const [deliveryFee, setDeliveryFee] = useState<number>(0);
 
-    // Coupon Logic
-    const [couponCode, setCouponCode] = useState('');
-    const [discountPercent, setDiscountPercent] = useState(0);
-    const [couponError, setCouponError] = useState('');
+    // Registering State
 
     // Seamless Registration State
     const [isRegistering, setIsRegistering] = useState(false);
     const [registerPassword, setRegisterPassword] = useState('');
 
-    // Points Redemption State
-    const [usePoints, setUsePoints] = useState(false);
-    const [pointsToUse, setPointsToUse] = useState(0);
+    // Wallet Balance State
+    const [useWallet, setUseWallet] = useState(false);
+    const [balanceToUse, setBalanceToUse] = useState(0);
 
     // Loading and Error States
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const applyCoupon = () => {
-        if (couponCode.toUpperCase().trim() === 'BURGERIDEAL5') {
-            setDiscountPercent(5);
-            setCouponError('');
-        } else {
-            setDiscountPercent(0);
-            setCouponError('Código inválido o expirado');
-        }
-    };
+    // CASHIER MODE STATES
+    const [isPaymentDeferred, setIsPaymentDeferred] = useState(false); // "Credit" / "Pay Later"
+    const [selectedInternalPayment, setSelectedInternalPayment] = useState<'cash' | 'pago_movil' | 'zelle' | 'other'>('cash');
+
 
     const subtotal = totalUsd;
-    const discountAmount = (subtotal * discountPercent) / 100;
-    const pointsDiscount = pointsToUse / 100; // 100 points = $1 USD
-    const finalTotalUsd = subtotal - discountAmount - pointsDiscount + deliveryFee;
+    // AUTO-CALC WALLET ABILITY
+    useEffect(() => {
+        if (useWallet && currentUser) {
+            const available = currentUser.walletBalance_usd || 0;
+            // Max can use is whichever is smaller: subtotal or available balance
+            setBalanceToUse(Math.min(available, totalUsd));
+        } else {
+            setBalanceToUse(0);
+        }
+    }, [useWallet, currentUser, totalUsd]);
+    useEffect(() => {
+        if (isOpen) {
+            setCurrentStep(1);
+        }
+    }, [isOpen]);
+
+    // Reset step when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            setCurrentStep(1);
+        }
+    }, [isOpen]);
+
+    const finalTotalUsd = Math.max(0, subtotal - balanceToUse + deliveryFee);
     const totalBs = (finalTotalUsd * tasaBs).toFixed(2);
 
     useEffect(() => {
@@ -64,13 +101,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
             setBuyerPhone(currentUser.phone);
         }
     }, [currentUser]);
-
-    // Reset step when modal opens
-    useEffect(() => {
-        if (isOpen) {
-            setCurrentStep(1);
-        }
-    }, [isOpen]);
 
     // Step 1 validation
     const isStep1Valid = currentUser || (buyerName.trim() && buyerPhone?.trim());
@@ -87,12 +117,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
 
         try {
             const registrationData = (isRegistering && !currentUser) ? { password: registerPassword } : undefined;
+            const fullPhone = currentUser ? buyerPhone : (phonePrefix + normalizePhone(buyerPhone));
             await onOrderConfirmed(
                 buyerEmail,
                 buyerName,
-                { method: deliveryMethod, fee: deliveryFee, phone: buyerPhone },
+                { method: deliveryMethod, fee: deliveryFee, phone: fullPhone },
                 registrationData,
-                usePoints ? pointsToUse : 0
+                useWallet ? balanceToUse : 0,
+                isCashierMode,
+                isPaymentDeferred ? 'pending' : 'paid',
+                isCashierMode ? selectedInternalPayment : 'whatsapp_link'
             );
             // Order confirmed successfully - modal will close via parent component
         } catch (err) {
@@ -120,11 +154,14 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
             {currentStep === 1 && (
                 <div className="space-y-6">
                     <div className="text-center mb-4">
-                        <h3 className="text-xl font-bold text-white mb-1">Datos de Contacto</h3>
-                        <p className="text-sm text-gray-400">¿Cómo te contactamos?</p>
+                        <h3 className="text-xl font-bold text-white mb-1">
+                            {isCashierMode ? 'Identificar Cliente' : 'Datos de Contacto'}
+                        </h3>
+                        <p className="text-sm text-gray-400">
+                            {isCashierMode ? '¿A quién le estamos vendiendo?' : '¿Cómo te contactamos?'}
+                        </p>
                     </div>
 
-                    {/* Contact Details Section */}
                     <div>
                         {currentUser ? (
                             <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700 flex items-center justify-between">
@@ -145,7 +182,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-gray-400 mb-1 text-xs uppercase font-bold tracking-wider text-accent-content/70 flex items-center gap-1">Nombre <span className="text-red-500">*</span></label>
+                                    <label className="block text-gray-400 mb-1 text-xs uppercase font-bold tracking-wider flex items-center gap-1">Nombre <span className="text-red-500">*</span></label>
                                     <input
                                         type="text"
                                         placeholder="Tu Nombre"
@@ -155,44 +192,49 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-gray-400 mb-1 text-xs uppercase font-bold tracking-wider text-accent-content/70 flex items-center gap-1">WhatsApp <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="tel"
-                                        inputMode="numeric"
-                                        autoComplete="tel"
-                                        placeholder="Ej: 04121234567"
-                                        value={buyerPhone}
-                                        onChange={(e) => setBuyerPhone(e.target.value)}
-                                        className="w-full px-4 py-2 rounded-md bg-gray-800 text-white border border-gray-700 focus:border-orange-500 outline-none transition-colors"
-                                    />
+                                    <label className="block text-gray-400 mb-1 text-xs uppercase font-bold tracking-wider flex items-center gap-1">WhatsApp <span className="text-red-500">*</span></label>
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={phonePrefix}
+                                            onChange={(e) => setPhonePrefix(e.target.value)}
+                                            className="bg-gray-800 text-white border border-gray-700 rounded-md px-2 py-2 focus:border-orange-500 outline-none transition-colors text-sm"
+                                        >
+                                            {COUNTRY_PREFIXES.map(p => (
+                                                <option key={p.code} value={p.code}>{p.flag} +{p.code}</option>
+                                            ))}
+                                        </select>
+                                        <input
+                                            type="tel"
+                                            placeholder="Número (10 dígitos)"
+                                            value={buyerPhone}
+                                            onChange={(e) => setBuyerPhone(e.target.value.replace(/\D/g, ''))}
+                                            className="flex-1 px-4 py-2 rounded-md bg-gray-800 text-white border border-gray-700 focus:border-orange-500 outline-none transition-colors"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* SEAMLESS REGISTRATION CHECKBOX */}
                     {!currentUser && (
                         <div className="bg-gradient-to-r from-orange-900/20 to-orange-800/20 p-4 rounded-xl border border-orange-500/30">
                             <label className="flex items-center gap-3 cursor-pointer group">
-                                <div className="relative flex-shrink-0">
-                                    <input
-                                        type="checkbox"
-                                        checked={isRegistering}
-                                        onChange={(e) => setIsRegistering(e.target.checked)}
-                                        className="peer sr-only"
-                                    />
-                                    <div className="w-6 h-6 border-2 border-orange-500 rounded bg-gray-900 peer-checked:bg-orange-500 transition-all"></div>
-                                    <div className="absolute inset-0 flex items-center justify-center text-white scale-0 peer-checked:scale-100 transition-transform pointer-events-none">
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                    </div>
+                                <input
+                                    type="checkbox"
+                                    checked={isRegistering}
+                                    onChange={(e) => setIsRegistering(e.target.checked)}
+                                    className="peer sr-only"
+                                />
+                                <div className="w-6 h-6 border-2 border-orange-500 rounded bg-gray-900 peer-checked:bg-orange-500 transition-all flex items-center justify-center">
+                                    <X size={14} className={`text-white transition-opacity ${isRegistering ? 'opacity-100' : 'opacity-0'}`} />
                                 </div>
                                 <span className="text-white font-bold text-sm group-hover:text-orange-300 transition-colors">
-                                    🎁 ¡Quiero ganar mis $50 de regalo y sumar puntos!
+                                    🎁 ¡Quiero ganar mi regalo de bienvenida y sumar recompensas!
                                 </span>
                             </label>
 
                             {isRegistering && (
-                                <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="mt-4 animate-in fade-in slide-in-from-top-2">
                                     <label className="block text-gray-400 mb-1 text-xs uppercase font-bold tracking-wider">Crea una contraseña <span className="text-red-500">*</span></label>
                                     <input
                                         type="password"
@@ -201,7 +243,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                                         onChange={(e) => setRegisterPassword(e.target.value)}
                                         className="w-full px-4 py-2 rounded-md bg-gray-900 text-white border border-orange-500/50 focus:border-orange-500 outline-none transition-colors"
                                     />
-                                    <p className="text-[10px] text-gray-400 mt-1">Crearemos tu cuenta automáticamente al confirmar el pedido.</p>
                                 </div>
                             )}
                         </div>
@@ -210,9 +251,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                     <button
                         onClick={() => setCurrentStep(2)}
                         disabled={!isStep1Valid || (isRegistering && registerPassword.length < 4)}
-                        className={`w-full py-4 rounded-full text-lg font-bold uppercase tracking-wide transition-all duration-300 ${!isStep1Valid || (isRegistering && registerPassword.length < 4)
+                        className={`w-full py-4 rounded-full text-lg font-bold uppercase tracking-wide transition-all ${!isStep1Valid || (isRegistering && registerPassword.length < 4)
                             ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                            : 'bg-orange-600 hover:bg-orange-500 text-white shadow-xl hover:shadow-orange-500/30 hover:-translate-y-1'
+                            : 'bg-orange-600 hover:bg-orange-500 text-white shadow-xl hover:-translate-y-1'
                             }`}
                     >
                         Continuar →
@@ -220,7 +261,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                 </div>
             )}
 
-            {/* STEP 2: DELIVERY, POINTS, CONFIRMATION */}
+            {/* STEP 2: DELIVERY, WALLET, CONFIRMATION */}
             {currentStep === 2 && (
                 <div className="space-y-6">
                     <div className="mb-6 bg-gray-800 p-4 rounded-lg border border-gray-700">
@@ -230,182 +271,118 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                                 <p className="text-gray-400">En Dólares:</p>
                                 <p className="text-white text-3xl font-black">$ {finalTotalUsd.toFixed(2)}</p>
                             </div>
-                            {/* BS DISPLAY HIGHLIGHT */}
-                            <div className="bg-gray-700/50 p-3 rounded-xl border border-orange-500/30 text-center relative overflow-hidden group">
-                                <div className="absolute inset-0 bg-orange-500/5 opacity-0 group-hover:opacity-10 transition-opacity"></div>
+                            <div className="bg-gray-700/50 p-3 rounded-xl border border-orange-500/30 text-center">
                                 <p className="text-orange-300 text-xs uppercase font-bold tracking-wider mb-1">Monto en Bolívares</p>
-                                <p className="text-3xl font-black text-orange-500 tracking-tight">Bs. {totalBs}</p>
-                                <p className="text-[10px] text-gray-500 mt-1 font-mono">Tasa del día: {tasaBs.toFixed(2)} Bs/$</p>
+                                <p className="text-3xl font-black text-white">Bs. {totalBs}</p>
                             </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2 text-right">*(Se coordinará el pago por WhatsApp)</p>
                     </div>
 
-                    {/* Delivery Selection */}
-                    <div>
-                        <h3 className="text-sm uppercase font-bold tracking-wider text-gray-400 mb-3">Método de Entrega:</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {isCashierMode && (
+                        <div className="space-y-4">
+                            <div className="bg-orange-600/10 border border-orange-500/30 p-4 rounded-2xl">
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-orange-500 mb-3 text-center">Forma de Pago</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {(['cash', 'pago_movil', 'zelle', 'other'] as const).map((method) => (
+                                        <button
+                                            key={method}
+                                            onClick={() => setSelectedInternalPayment(method)}
+                                            className={`py-4 px-2 rounded-xl border text-[11px] font-black uppercase transition-all flex flex-col items-center justify-center gap-1 ${selectedInternalPayment === method
+                                                ? 'bg-orange-600 border-orange-500 text-white shadow-lg'
+                                                : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}
+                                        >
+                                            <span className="text-xl">
+                                                {method === 'cash' && '💵'}
+                                                {method === 'pago_movil' && '📲'}
+                                                {method === 'zelle' && '🏦'}
+                                                {method === 'other' && '💳'}
+                                            </span>
+                                            <span>
+                                                {method === 'cash' && 'Efectivo'}
+                                                {method === 'pago_movil' && 'Pago Móvil'}
+                                                {method === 'zelle' && 'Zelle'}
+                                                {method === 'other' && 'Otro'}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="bg-red-600/10 border border-red-500/30 p-4 rounded-2xl">
+                                <label className="flex items-center justify-between cursor-pointer">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isPaymentDeferred ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-gray-500'}`}>
+                                            <Clock size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-white font-bold text-sm">Comer Primero / Pagar Después</p>
+                                            <p className="text-[10px] text-gray-500 font-bold uppercase">Crédito / Deuda</p>
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={isPaymentDeferred}
+                                        onChange={(e) => setIsPaymentDeferred(e.target.checked)}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-14 h-7 bg-gray-800 rounded-full peer peer-checked:bg-red-600 relative after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-7"></div>
+                                </label>
+                            </div>
+                        </div>
+                    )}
+
+                    {!isCashierMode && (
+                        <div className="bg-gradient-to-br from-blue-900/30 to-gray-800 p-4 rounded-xl border border-blue-500/30">
+                            <h3 className="text-sm font-black text-white uppercase tracking-wider mb-3">Datos Pago Móvil</h3>
+                            <div className="grid grid-cols-2 gap-y-1 text-xs">
+                                <span className="text-gray-400">Banco:</span>
+                                <span className="text-white text-right">{PAGO_MOVIL_BANK}</span>
+                                <span className="text-gray-400">Cédula:</span>
+                                <span className="text-white text-right font-mono">{PAGO_MOVIL_ID}</span>
+                                <span className="text-gray-400">Teléfono:</span>
+                                <span className="text-white text-right font-mono">{PAGO_MOVIL_PHONE}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="space-y-4">
+                        <h3 className="text-sm uppercase font-bold tracking-wider text-gray-400">Método de Entrega:</h3>
+                        <div className="grid grid-cols-2 gap-3">
                             <button
                                 onClick={() => { setDeliveryMethod('pickup'); setDeliveryFee(0); }}
-                                className={`py-3 px-4 rounded-lg border-2 transition-all flex flex-col items-center justify-center gap-1 ${deliveryMethod === 'pickup' ? 'border-orange-500 bg-orange-500/10 text-white' : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'}`}
+                                className={`py-4 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${deliveryMethod === 'pickup' ? 'border-orange-500 bg-orange-500/10 text-white' : 'border-gray-700 bg-gray-800 text-gray-400'}`}
                             >
                                 <span className="font-bold text-lg">🏠 Retiro</span>
                                 <span className="text-xs">Gratis</span>
                             </button>
-                            <div className="flex flex-col gap-2">
-                                <div className={`p-2 rounded-lg border-2 transition-all h-full ${deliveryMethod === 'delivery' ? 'border-orange-500 bg-orange-500/10 text-white' : 'border-gray-700 bg-gray-800 text-gray-400'}`}>
-                                    <span className="text-xs font-bold block mb-2 text-center underline decoration-orange-500/50">🛵 Delivery:</span>
-                                    <div className="flex flex-col gap-1.5">
-                                        <button
-                                            onClick={() => { setDeliveryMethod('delivery'); setDeliveryFee(1); }}
-                                            className={`py-2 px-3 rounded text-left text-xs font-bold border transition-colors flex justify-between items-center gap-2 ${deliveryFee === 1 && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
-                                        >
-                                            <span className="truncate">Zona 1 <span className="font-normal opacity-70">(Mora)</span></span>
-                                            <span className="shrink-0">$1</span>
-                                        </button>
-                                        <button
-                                            onClick={() => { setDeliveryMethod('delivery'); setDeliveryFee(2); }}
-                                            className={`py-2 px-3 rounded text-left text-xs font-bold border transition-colors flex justify-between items-center gap-2 ${deliveryFee === 2 && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
-                                        >
-                                            <span className="truncate">Zona 2 <span className="font-normal opacity-70">(Real)</span></span>
-                                            <span className="shrink-0">$2</span>
-                                        </button>
-                                        <button
-                                            onClick={() => { setDeliveryMethod('delivery'); setDeliveryFee(3); }}
-                                            className={`py-2 px-3 rounded text-left text-xs font-bold border transition-colors flex justify-between items-center gap-2 ${deliveryFee === 3 && deliveryMethod === 'delivery' ? 'bg-orange-600 border-orange-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
-                                        >
-                                            <span className="truncate">Zona 3 <span className="font-normal opacity-70">(Consejo)</span></span>
-                                            <span className="shrink-0">$3</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* POINTS REDEMPTION SECTION */}
-                    {currentUser && currentUser.points > 0 && (
-                        <div className="mb-6 bg-gradient-to-r from-purple-900/20 to-blue-900/20 p-4 rounded-xl border border-purple-500/30">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-2xl">💎</span>
-                                    <div>
-                                        <p className="text-white font-bold text-sm">Tienes {currentUser.points} puntos</p>
-                                        <p className="text-gray-400 text-xs">= ${(currentUser.points / 100).toFixed(2)} USD disponibles</p>
-                                    </div>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={usePoints}
-                                        onChange={(e) => {
-                                            setUsePoints(e.target.checked);
-                                            if (!e.target.checked) setPointsToUse(0);
-                                        }}
-                                        className="sr-only peer"
-                                    />
-                                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
-                                </label>
-                            </div>
-
-                            {usePoints && (
-                                <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <label className="block text-gray-300 text-xs mb-2">Puntos a usar:</label>
-                                    <div className="flex items-center gap-3">
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max={Math.min(currentUser.points, Math.floor(finalTotalUsd * 100))}
-                                            value={pointsToUse}
-                                            onChange={(e) => setPointsToUse(Number(e.target.value))}
-                                            className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                                        />
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            max={Math.min(currentUser.points, Math.floor(finalTotalUsd * 100))}
-                                            value={pointsToUse}
-                                            onChange={(e) => setPointsToUse(Math.min(Number(e.target.value), currentUser.points))}
-                                            className="w-20 bg-gray-800 border border-purple-500/50 rounded px-2 py-1 text-white text-sm text-center"
-                                        />
-                                    </div>
-                                    {pointsToUse > 0 && (
-                                        <p className="text-green-400 text-xs mt-2 font-bold">
-                                            🎉 Descuento de ${pointsDiscount.toFixed(2)} USD aplicado
-                                        </p>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Coupon Section */}
-                    <div className="mb-6 bg-gray-800/30 p-4 rounded-xl border border-gray-700 border-dashed">
-                        <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Código Promocional</label>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                value={couponCode}
-                                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                                placeholder="Ej: BURGERIDEAL5"
-                                className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 outline-none uppercase font-mono"
-                            />
                             <button
-                                onClick={applyCoupon}
-                                className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors"
+                                onClick={() => { setDeliveryMethod('delivery'); setDeliveryFee(2); }}
+                                className={`py-4 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${deliveryMethod === 'delivery' ? 'border-orange-500 bg-orange-500/10 text-white' : 'border-gray-700 bg-gray-800 text-gray-400'}`}
                             >
-                                Aplicar
+                                <span className="font-bold text-lg">🛵 Delivery</span>
+                                <span className="text-xs">Desde $2</span>
                             </button>
                         </div>
-                        {couponError && <p className="text-red-500 text-xs mt-2 font-bold">{couponError}</p>}
-                        {discountPercent > 0 && (
-                            <div className="mt-2 text-green-500 text-xs font-bold flex items-center gap-1">
-                                <span>🎉 ¡Cupón aplicado! Ahorras ${discountAmount.toFixed(2)} USD</span>
-                            </div>
-                        )}
                     </div>
 
-                    {/* SEAMLESS REGISTRATION CHECKBOX */}
-                    {!currentUser && (
-                        <div className="mb-6 bg-gradient-to-r from-orange-900/20 to-orange-800/20 p-4 rounded-xl border border-orange-500/30">
-                            <label className="flex items-center gap-3 cursor-pointer group">
-                                <div className="relative flex-shrink-0">
-                                    <input
-                                        type="checkbox"
-                                        checked={isRegistering}
-                                        onChange={(e) => setIsRegistering(e.target.checked)}
-                                        className="peer sr-only"
-                                    />
-                                    <div className="w-6 h-6 border-2 border-orange-500 rounded bg-gray-900 peer-checked:bg-orange-500 transition-all"></div>
-                                    <div className="absolute inset-0 flex items-center justify-center text-white scale-0 peer-checked:scale-100 transition-transform pointer-events-none">
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                    </div>
-                                </div>
-                                <span className="text-white font-bold text-sm group-hover:text-orange-300 transition-colors">
-                                    🎁 ¡Quiero ganar mis $50 de regalo y sumar puntos!
-                                </span>
-                            </label>
-
-                            {isRegistering && (
-                                <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <label className="block text-gray-400 mb-1 text-xs uppercase font-bold tracking-wider">Crea una contraseña <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="password"
-                                        placeholder="Mínimo 4 caracteres"
-                                        value={registerPassword}
-                                        onChange={(e) => setRegisterPassword(e.target.value)}
-                                        className="w-full px-4 py-2 rounded-md bg-gray-900 text-white border border-orange-500/50 focus:border-orange-500 outline-none transition-colors"
-                                    />
-                                    <p className="text-[10px] text-gray-400 mt-1">Crearemos tu cuenta automáticamente al confirmar el pedido.</p>
-                                </div>
-                            )}
+                    {currentUser && (currentUser.walletBalance_usd || 0) > 0 && (
+                        <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-black text-green-500 uppercase">Billetera Ray ($)</p>
+                                <p className="text-[10px] text-gray-400">Saldo: ${currentUser.walletBalance_usd.toFixed(2)}</p>
+                            </div>
+                            <button
+                                onClick={() => setUseWallet(!useWallet)}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useWallet ? 'bg-green-600' : 'bg-gray-700'}`}
+                            >
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useWallet ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
                         </div>
                     )}
 
-                    {/* Error Message */}
                     {error && (
-                        <div className="mb-4 bg-red-900/20 border border-red-500/30 rounded-lg p-3">
-                            <p className="text-red-400 text-sm font-semibold">❌ {error}</p>
+                        <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm font-semibold">
+                            ❌ {error}
                         </div>
                     )}
 
@@ -420,33 +397,21 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                         <button
                             onClick={handleConfirmOrder}
                             disabled={isConfirmButtonDisabled || (isRegistering && registerPassword.length < 4)}
-                            className={`flex-1 py-4 rounded-full text-lg font-bold uppercase tracking-wide transition-all duration-300 flex items-center justify-center gap-2 ${isConfirmButtonDisabled || (isRegistering && registerPassword.length < 4)
+                            className={`flex-1 py-4 rounded-full text-lg font-bold uppercase transition-all flex items-center justify-center gap-2 ${isConfirmButtonDisabled || (isRegistering && registerPassword.length < 4)
                                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                : 'bg-green-600 hover:bg-green-500 text-white shadow-xl hover:shadow-green-500/30 hover:-translate-y-1'
+                                : 'bg-green-600 hover:bg-green-500 text-white shadow-xl hover:-translate-y-1'
                                 }`}
                         >
-                            {isProcessing ? (
-                                <>
-                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                    Procesando...
-                                </>
-                            ) : isConfirmButtonDisabled ? (
-                                'Faltan datos'
-                            ) : (isRegistering && registerPassword.length < 4) ? (
-                                'Contraseña requerida'
-                            ) : (
-                                <>
-                                    <MessageSquare className="w-5 h-5" />
-                                    {isRegistering ? 'Crear y Confirmar' : 'Confirmar Pedido'}
-                                </>
-                            )}
+                            {isProcessing ? <Loader2 className="animate-spin" /> : 'Confirmar Pedido'}
                         </button>
                     </div>
-
-                    <p className="text-xs text-gray-500 text-center mt-3">Al confirmar, serás redirigido a WhatsApp para finalizar.</p>
+                    <p className="text-[10px] text-gray-500 text-center uppercase font-bold tracking-widest mt-2 transition-all">
+                        {isCashierMode ? '✨ Venta procesada internamente' : '🚀 Te llevaremos a WhatsApp'}
+                    </p>
                 </div>
             )}
         </Modal>
     );
 };
+
 export default CheckoutModal;

@@ -1,0 +1,27 @@
+﻿src/components/admin/AdminDashboard.tsx(8,50): error TS6133: 'Cloud' is declared but its value is never read.
+src/components/admin/AdminDashboard.tsx(9,5): error TS6133: 'CheckCircle2' is declared but its value is never read.
+src/components/admin/AdminDashboard.tsx(45,41): error TS6133: 'wipeCloudData' is declared but its value is never read.
+src/components/admin/AdminDashboard.tsx(46,11): error TS6198: All destructured elements are unused.
+src/components/auth/guards/AdminRoute.tsx(23,40): error TS18047: 'supabase' is possibly 'null'.
+src/components/auth/RegisterModal.tsx(110,15): error TS2739: Type '{ email: string; name: string; lastName: string | undefined; phone: string; passwordHash: string; referralCode: string; referredByCode: string | undefined; points: number; loyaltyTier: string; ... 5 more ...; nextPurchaseMultiplier: number; }' is missing the following properties from type 'User': walletBalance_usd, lifetimeSpending_usd
+src/components/layout/FAQSection.tsx(3,38): error TS6133: 'HelpCircle' is declared but its value is never read.
+src/components/loyalty/RewardsProgressBar.tsx(3,10): error TS2305: Module '"../../data/rewards"' has no exported member 'REWARD_MILESTONES'.
+src/components/loyalty/RewardsProgressBar.tsx(11,50): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/components/loyalty/RewardsProgressBar.tsx(75,45): error TS7006: Parameter 'milestone' implicitly has an 'any' type.
+src/components/loyalty/RewardUnlockModal.tsx(4,10): error TS2305: Module '"../../data/rewards"' has no exported member 'RewardMilestone'.
+src/components/routing/MainRouter.tsx(11,13): error TS6133: 'currentUser' is declared but its value is never read.
+src/components/ui/ErrorBoundary.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/ui/OrderStatusTracker.tsx(3,17): error TS6133: 'ChefHat' is declared but its value is never read.
+src/components/ui/OrderStatusTracker.tsx(3,26): error TS6133: 'Truck' is declared but its value is never read.
+src/context/AuthContext.tsx(77,65): error TS2551: Property 'lastPointsUpdate' does not exist on type 'User'. Did you mean 'lastSpinDate'?
+src/context/AuthContext.tsx(77,105): error TS2551: Property 'lastPointsUpdate' does not exist on type 'User'. Did you mean 'lastSpinDate'?
+src/context/AuthContext.tsx(79,38): error TS2551: Property 'lastPointsUpdate' does not exist on type 'User'. Did you mean 'lastSpinDate'?
+src/context/AuthContext.tsx(150,31): error TS6133: 'newUser' is declared but its value is never read.
+src/context/AuthContext.tsx(323,13): error TS2561: Object literal may only specify known properties, but 'lastPointsUpdate' does not exist in type 'User'. Did you mean to write 'lastSpinDate'?
+src/hooks/useCloudSync.ts(251,55): error TS2339: Property 'orders' does not exist on type '{}'.
+src/hooks/useCloudSync.ts(273,65): error TS2339: Property 'points' does not exist on type '{}'.
+src/hooks/useCloudSync.ts(274,66): error TS2339: Property 'walletBalance_usd' does not exist on type '{}'.
+src/hooks/useCloudSync.ts(281,66): error TS2339: Property 'password' does not exist on type '{}'.
+src/hooks/useCloudSync.ts(282,71): error TS2339: Property 'role' does not exist on type '{}'.
+src/hooks/useCloudSync.ts(282,125): error TS2339: Property 'role' does not exist on type '{}'.
+src/pages/client/Storefront.tsx(371,23): error TS2741: Property 'points' is missing in type '{ name: string; email: string; phone: string; passwordHash: string; referralCode: string; walletBalance_usd: number; lifetimeSpending_usd: number; loyaltyTier: string; role: "customer"; orders: Order[]; }' but required in type 'User'.

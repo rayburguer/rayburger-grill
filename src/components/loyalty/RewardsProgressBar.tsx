@@ -8,8 +8,8 @@ interface RewardsProgressBarProps {
 
 const RewardsProgressBar: React.FC<RewardsProgressBarProps> = ({ currentPoints }) => {
     // Find next milestone
-    const nextMilestone = REWARD_MILESTONES.find(m => m.points > currentPoints);
-    const previousMilestone = [...REWARD_MILESTONES].reverse().find(m => m.points <= currentPoints);
+    const nextMilestone = REWARD_MILESTONES.find((m: any) => m.points > currentPoints);
+    const previousMilestone = [...REWARD_MILESTONES].reverse().find((m: any) => m.points <= currentPoints);
 
     if (!nextMilestone) {
         // User has reached max level
@@ -78,8 +78,8 @@ const RewardsProgressBar: React.FC<RewardsProgressBarProps> = ({ currentPoints }
                             <div
                                 key={milestone.points}
                                 className={`text-center p-2 rounded-lg transition-all ${isUnlocked
-                                        ? 'bg-green-900/30 border border-green-500/50'
-                                        : 'bg-gray-700/30 border border-gray-600/50'
+                                    ? 'bg-green-900/30 border border-green-500/50'
+                                    : 'bg-gray-700/30 border border-gray-600/50'
                                     }`}
                             >
                                 <div className="text-2xl mb-1">{milestone.emoji}</div>

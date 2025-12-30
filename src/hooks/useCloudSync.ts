@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, Order } from '../types';
+import { normalizePhone } from '../utils/helpers';
 
 const sanitizeData = (table: string, data: any[]) => {
     if (table === 'rb_products') {
@@ -137,7 +138,8 @@ export const useCloudSync = () => {
     const migrateAllToCloud = useCallback(async () => {
         const results = [];
 
-        // 1. Users
+        // 0. Merge Duplicates (Auto-Cleaning on Migrate)
+        // Ideally we do this explicitly, but let's keep it separate for safety. 
         const localUsers = localStorage.getItem('rayburger_registered_users');
         if (localUsers) {
             try {
@@ -205,151 +207,174 @@ export const useCloudSync = () => {
         return results;
     }, [pushToCloud, replaceInCloud]); // ✅ FIXED: Added replaceInCloud dependency
 
-    const pullFromCloud = useCallback(async () => {
+    const pullFromCloud = useCallback(async (options?: { forceCleanLocal?: boolean }) => {
         if (!supabase) return { error: 'Supabase client not initialized' };
 
         setIsSyncing(true);
-        const errors = [];
+        const errors: string[] = [];
+        const log = (msg: string) => console.log(`☁️ ${msg}`);
 
         try {
-            console.log("☁️ STARTING MANUAL PULL FROM CLOUD...");
+            log("STARTING MANUAL PULL...");
 
             // 1. PRODUCTS
-            const { data: products, error: prodError } = await supabase.from('rb_products').select('*');
-            if (prodError) errors.push(`Products: ${prodError.message}`);
-            else if (products) {
-                // Map back customizable options if needed (currently stored as is)
-                localStorage.setItem('rayburger_products', JSON.stringify(products));
-                // Force UI update
-                window.dispatchEvent(new CustomEvent('rayburger_products_updated', { detail: { source: 'cloud_pull' } }));
-                console.log(`✅ Pulled ${products.length} products`);
+            try {
+                const { data: products, error } = await supabase.from('rb_products').select('*');
+                if (error) throw error;
+                if (products) {
+                    localStorage.setItem('rayburger_products', JSON.stringify(products));
+                    window.dispatchEvent(new CustomEvent('rayburger_products_updated', { detail: { source: 'cloud_pull' } }));
+                    log(`Pulled ${products.length} products`);
+                }
+            } catch (e: any) {
+                console.error("Sync Error (Products):", e);
+                errors.push(`Products: ${e.message}`);
             }
 
-            // 2. USERS (with intelligent merge)
-            const { data: users, error: userError } = await supabase.from('rb_users').select('*');
-            if (userError) errors.push(`Users: ${userError.message}`);
-            else if (users) {
-                // 2. USERS (with intelligent merge)
-                const currentLocalUsers = JSON.parse(localStorage.getItem('rayburger_registered_users') || '[]');
-                const localUsersMap = new Map(currentLocalUsers.map((u: any) => [u.email, u]));
-                const remoteEmails = new Set(users.map(u => u.email));
+            // 2. USERS (Intelligent Merge)
+            try {
+                const { data: users, error } = await supabase.from('rb_users').select('*');
+                if (error) throw error;
+                if (users) {
+                    const currentLocalUsers = JSON.parse(localStorage.getItem('rayburger_registered_users') || '[]');
+                    const localUsersMap = new Map<string, User>(currentLocalUsers.map((u: any) => [u.email, u as User]));
+                    const remoteEmails = new Set(users.map(u => u.email));
 
-                // A. Base: Process all users from Cloud
-                const mergedUsers = users.map((remoteUser: any) => {
-                    const { id, ...rest } = remoteUser;
-                    const localUser = localUsersMap.get(rest.email);
+                    const mergedUsers = users
+                        .filter((u: any) => u.role !== 'deleted') // 🛡️ FILTER SOFT DELETED
+                        .map((remoteUser: any) => {
+                            const { id, ...rest } = remoteUser;
+                            const localUser = localUsersMap.get(rest.email) as User | undefined;
+                            if (!localUser) return { ...rest, points: rest.points || 0, walletBalance_usd: rest.walletBalance_usd || 0, lifetimeSpending_usd: rest.lifetimeSpending_usd || 0 };
 
-                    if (!localUser) return rest;
+                            // Name & Profile protection logic
+                            const invalidNames = ['Cliente', 'Cliente Nuevo', 'Invitado', 'Sin Nombre'];
+                            const isRemoteNameValid = rest.name && !invalidNames.includes(rest.name);
+                            const isLocalNameValid = localUser.name && !invalidNames.includes(localUser.name);
 
-                    const statusPriority: Record<string, number> = {
-                        'approved': 3,
-                        'delivered': 2,
-                        'pending': 1,
-                        'rejected': 0
-                    };
+                            // Prefer remote if valid, but keep local if remote is default/invalid
+                            const mergedName = isRemoteNameValid ? rest.name : (isLocalNameValid ? localUser.name : (rest.name || 'Cliente'));
+                            const mergedLastName = rest.lastName || localUser.lastName;
+                            const mergedBirthDate = rest.birthDate || localUser.birthDate;
 
-                    // Intelligently merge orders
-                    const remoteOrders = rest.orders || [];
-                    const localOrders = localUser.orders || [];
-                    const remoteOrderIds = new Set(remoteOrders.map((o: any) => o.orderId));
+                            const statusPriority: Record<string, number> = { 'approved': 3, 'delivered': 2, 'pending': 1, 'rejected': 0 };
 
-                    const mergedOrders = remoteOrders.map((remoteOrder: any) => {
-                        const localOrder = localOrders.find((lo: any) => lo.orderId === remoteOrder.orderId);
-                        if (!localOrder) return remoteOrder;
+                            // Merge Orders
+                            const remoteOrders = rest.orders || [];
+                            const localOrders = localUser.orders || [];
+                            const remoteOrderIds = new Set(remoteOrders.map((o: any) => o.orderId));
 
-                        const localPriority = statusPriority[localOrder.status || 'pending'] || 0;
-                        const remotePriority = statusPriority[remoteOrder.status || 'pending'] || 0;
+                            const mergedOrders = remoteOrders.map((remoteOrder: any) => {
+                                const localOrder = localOrders.find((lo: any) => lo.orderId === remoteOrder.orderId);
+                                if (!localOrder) return remoteOrder;
+                                const localP = statusPriority[localOrder.status] || 0;
+                                const remoteP = statusPriority[remoteOrder.status] || 0;
+                                return localP > remoteP ? localOrder : remoteOrder;
+                            });
 
-                        return localPriority > remotePriority ? localOrder : remoteOrder;
-                    });
+                            // Resurrect recent local orders
+                            const RECENT_WINDOW_MS = 15 * 60 * 1000;
+                            const now = Date.now();
+                            localOrders.forEach((localOrder: any) => {
+                                if (!remoteOrderIds.has(localOrder.orderId)) {
+                                    const isRecent = (now - localOrder.timestamp) < RECENT_WINDOW_MS;
+                                    const isActive = !['approved', 'rejected', 'delivered'].includes(localOrder.status);
+                                    if (isRecent || isActive) mergedOrders.push(localOrder);
+                                }
+                            });
 
-                    // Preservation logic for local orders NOT in cloud
-                    // Only resurrect if they are VERY recent (likely not yet synced)
-                    const RECENT_WINDOW_MS = 15 * 60 * 1000;
-                    const now = Date.now();
+                            const mergedPoints = Math.max(localUser.points || 0, rest.points || 0);
+                            const mergedBalance = Math.max(localUser.walletBalance_usd || 0, rest.walletBalance_usd || 0);
 
-                    localOrders.forEach((localOrder: any) => {
-                        if (!remoteOrderIds.has(localOrder.orderId)) {
-                            const isVeryRecent = (now - localOrder.timestamp) < RECENT_WINDOW_MS;
-                            const isActiveStatus = !['approved', 'rejected', 'delivered'].includes(localOrder.status);
+                            return {
+                                ...rest,
+                                name: mergedName,
+                                lastName: mergedLastName,
+                                birthDate: mergedBirthDate,
+                                orders: mergedOrders,
+                                points: mergedPoints, // Keep solely for legacy safety
+                                walletBalance_usd: mergedBalance, // IMPORTANT: unified wallet merge
+                                passwordHash: rest.passwordHash || localUser.passwordHash || (rest as any).password || (localUser as any).password || '', // Prefer hash, fallback legacy
+                                role: (rest.role === 'admin' || localUser.role === 'admin') ? 'admin' : (rest.role || localUser.role || 'customer')
+                            };
+                        });
 
-                            if (isVeryRecent || isActiveStatus) {
-                                mergedOrders.push(localOrder);
-                                console.log(`🚀 Reserving recent/active local order: ${localOrder.orderId}`);
-                            } else {
-                                console.log(`🗑️ Ignoring old local order ${localOrder.orderId} (likely deleted in cloud)`);
+                    // Add Local-Only Users (Only if not in forceCleanLocal mode)
+                    if (!options?.forceCleanLocal) {
+                        currentLocalUsers.forEach((localUser: any) => {
+                            if (!remoteEmails.has(localUser.email)) mergedUsers.push(localUser);
+                        });
+                    }
+
+                    // SANITY CHECK: Ensure absolute uniqueness by email before saving
+                    const uniqueMap = new Map<string, any>();
+                    mergedUsers.forEach((u: any) => {
+                        if (u.email) {
+                            const normalized = u.email.toLowerCase().trim();
+                            if (!uniqueMap.has(normalized)) {
+                                uniqueMap.set(normalized, u);
                             }
                         }
                     });
+                    const finalUsers = Array.from(uniqueMap.values());
 
-                    // Merge other user properties (e.g., points - use higher value for safety/loyalty)
-                    const mergedPoints = Math.max(localUser.points || 0, rest.points || 0);
-
-                    return {
-                        ...rest,
-                        orders: mergedOrders,
-                        points: mergedPoints,
-                        // Preserve local role/password if cloud is missing them
-                        // Improved Role Merge: If either is 'admin', user stays 'admin'
-                        password: rest.password || localUser.password,
-                        role: (rest.role === 'admin' || localUser.role === 'admin') ? 'admin' : (rest.role || localUser.role || 'customer')
-                    };
-                });
-
-                // B. Add Users that exist ONLY locally (e.g., created offline)
-                currentLocalUsers.forEach((localUser: any) => {
-                    if (!remoteEmails.has(localUser.email)) {
-                        console.log(`➕ Adding local-only user: ${localUser.email}`);
-                        mergedUsers.push(localUser);
-                    }
-                });
-
-                localStorage.setItem('rayburger_registered_users', JSON.stringify(mergedUsers));
-                window.dispatchEvent(new CustomEvent('rayburger_users_updated', { detail: { source: 'cloud_pull' } }));
-                console.log(`✅ Pulled ${users.length} users (with intelligent merge)`);
+                    localStorage.setItem('rayburger_registered_users', JSON.stringify(finalUsers));
+                    window.dispatchEvent(new CustomEvent('rayburger_users_updated', { detail: { source: 'cloud_pull' } }));
+                    log(`Pulled ${users.length} users (Merged)`);
+                }
+            } catch (e: any) {
+                console.error("Sync Error (Users):", e);
+                errors.push(`Users: ${e.message}`);
             }
 
-            // 3. SETTINGS (Tasa)
-            const { data: settings, error: setError } = await supabase.from('rb_settings').select('*').eq('id', 'tasa').single();
-            if (!setError && settings) {
-                localStorage.setItem('rayburger_tasa', settings.value.toString());
-                console.log(`✅ Pulled Tasa: ${settings.value}`);
+            // 3. SETTINGS
+            try {
+                const { data, error } = await supabase.from('rb_settings').select('*').eq('id', 'tasa').single();
+                if (data && !error) {
+                    localStorage.setItem('rayburger_tasa', data.value.toString());
+                    log(`Pulled Tasa: ${data.value}`);
+                }
+            } catch (e: any) {
+                // Settings might not exist, ignore critical
             }
 
             // 4. GUEST ORDERS
-            const { data: orders, error: ordError } = await supabase.from('rb_orders').select('*');
-            if (ordError) errors.push(`Orders: ${ordError.message}`);
-            else if (orders) {
-                const localOrders = orders.map(o => {
-                    const { id, ...rest } = o;
-                    return { ...rest, orderId: id }; // Map ID back to orderId
-                });
-                localStorage.setItem('rayburger_guest_orders', JSON.stringify(localOrders));
-                console.log(`✅ Pulled ${orders.length} orders`);
+            try {
+                const { data: orders, error } = await supabase.from('rb_orders').select('*');
+                if (error) throw error;
+                if (orders) {
+                    const mappedOrders = orders.map(o => {
+                        const { id, ...rest } = o;
+                        return { ...rest, orderId: id };
+                    });
+                    localStorage.setItem('rayburger_guest_orders', JSON.stringify(mappedOrders));
+                    log(`Pulled ${orders.length} orders`);
+                }
+            } catch (e: any) {
+                console.error("Sync Error (Orders):", e);
+                errors.push(`Orders: ${e.message}`);
             }
 
             // 5. SURVEYS
-            const { data: surveys, error: survError } = await supabase.from('rb_surveys').select('*');
-            if (!survError && surveys) {
-                localStorage.setItem('rayburger_surveys', JSON.stringify(surveys));
-                window.dispatchEvent(new CustomEvent('rayburger_surveys_updated', { detail: { source: 'cloud_pull' } }));
-                console.log(`✅ Pulled ${surveys.length} surveys`);
+            try {
+                const { data: surveys, error } = await supabase.from('rb_surveys').select('*');
+                if (error) throw error;
+                if (surveys) {
+                    localStorage.setItem('rayburger_surveys', JSON.stringify(surveys));
+                    window.dispatchEvent(new CustomEvent('rayburger_surveys_updated', { detail: { source: 'cloud_pull' } }));
+                    log(`Pulled ${surveys.length} surveys`);
+                }
+            } catch (e: any) {
+                errors.push(`Surveys: ${e.message}`);
             }
 
             const now = Date.now();
             setLastSync(now);
             localStorage.setItem('rayburger_last_cloud_sync', now.toString());
 
-            if (errors.length > 0) {
-                console.error("❌ Pull errors:", errors);
-                return { error: errors.join(', ') };
-            }
-
+            if (errors.length > 0) return { error: errors.join(', ') };
             return { error: null };
 
-        } catch (err: any) {
-            console.error("💥 CRITICAL PULL ERROR:", err);
-            return { error: err.message };
         } finally {
             setIsSyncing(false);
         }
@@ -402,6 +427,144 @@ export const useCloudSync = () => {
         }
     }, []);
 
+    const mergeDuplicates = useCallback(async () => {
+        if (!supabase) return { error: 'No connection' };
+
+        try {
+            setIsSyncing(true);
+
+            // 0. Sync local data first to avoid losing unpushed points/orders
+            console.log("🔄 Syncing local data before merge...");
+            await migrateAllToCloud();
+
+            // 1. Fetch ALL users from Cloud
+            const { data: users, error } = await supabase.from('rb_users').select('*');
+            if (error) throw error;
+            if (!users || users.length === 0) return { merged: 0, deleted: 0 };
+
+            // 2. Group by Phone
+            const groups: Record<string, any[]> = {};
+            users.forEach((u: any) => {
+                if (u.role === 'deleted') return; // Ignore soft deleted
+                const phone = normalizePhone(u.phone || '');
+                if (!phone) return;
+                if (!groups[phone]) groups[phone] = [];
+                groups[phone].push(u);
+            });
+
+            let deletedCount = 0;
+            let mergedCount = 0;
+
+            // 3. Process Groups
+            for (const phone in groups) {
+                const group = groups[phone];
+                if (group.length < 2) continue; // No duplicates
+
+                console.log(`Merging duplicates for ${phone} (${group.length} records)`);
+
+                // Sort to find Master:
+                // Prioritize users with 'admin' role, then most orders, then most points.
+                group.sort((a, b) => {
+                    if (a.role === 'admin' && b.role !== 'admin') return -1;
+                    if (b.role === 'admin' && a.role !== 'admin') return 1;
+
+                    const ordersA = (a.orders || []).length;
+                    const ordersB = (b.orders || []).length;
+                    if (ordersB !== ordersA) return ordersB - ordersA;
+
+                    return (b.points || 0) - (a.points || 0);
+                });
+
+                const master = group[0];
+                const victims = group.slice(1);
+
+                // Merge Data
+                let combinedPoints = master.points || 0;
+                let combinedWallet = master.walletBalance_usd || 0;
+                let combinedLifetime = master.lifetimeSpending_usd || 0;
+                let allOrders = [...(master.orders || [])];
+
+                // Profile merging to avoid losing names/info
+                const invalidNames = ['Cliente', 'Cliente Nuevo', 'Invitado', 'Sin Nombre'];
+                let bestName = (master.name && !invalidNames.includes(master.name)) ? master.name : '';
+                let bestLastName = master.lastName || '';
+                let bestBirthDate = master.birthDate;
+
+                // Map of order IDs to avoid duplicating the EXACT same order object
+                const seenOrderIds = new Set(allOrders.map((o: any) => o.orderId));
+
+                victims.forEach(v => {
+                    combinedPoints += (v.points || 0);
+                    combinedWallet += (v.walletBalance_usd || 0);
+                    combinedLifetime += (v.lifetimeSpending_usd || 0);
+
+                    // Steal profile data if master doesn't have it
+                    if (!bestName && v.name && !invalidNames.includes(v.name)) bestName = v.name;
+                    if (!bestLastName && v.lastName) bestLastName = v.lastName;
+                    if (!bestBirthDate && v.birthDate) bestBirthDate = v.birthDate;
+
+                    if (v.orders && Array.isArray(v.orders)) {
+                        v.orders.forEach((o: any) => {
+                            if (!seenOrderIds.has(o.orderId)) {
+                                allOrders.push(o);
+                                seenOrderIds.add(o.orderId);
+                            }
+                        });
+                    }
+                });
+
+                // Update Master in Cloud
+                const { error: updateError } = await supabase
+                    .from('rb_users')
+                    .update({
+                        name: bestName || master.name,
+                        lastName: bestLastName || master.lastName,
+                        birthDate: bestBirthDate || master.birthDate,
+                        points: combinedPoints, // Legacy
+                        walletBalance_usd: combinedWallet,
+                        lifetimeSpending_usd: combinedLifetime,
+                        orders: allOrders
+                    })
+                    .eq('id', master.id);
+
+                if (updateError) {
+                    console.error("Failed to update master", updateError);
+                    continue;
+                }
+
+                // SOFT DELETE VICTIMS (Because RLS prevents hard DELETE for anon)
+                const victimIds = victims.map(v => v.id);
+                if (victimIds.length > 0) {
+                    // Mark as deleted instead of removing row
+                    const { error: delError } = await supabase
+                        .from('rb_users')
+                        .update({
+                            role: 'deleted',
+                            name: 'MERGED_DELETED',
+                            phone: `DEL_${Date.now()}_${Math.random()}`.substring(0, 15),
+                            email: `deleted_${Date.now()}_${Math.random()}@deleted.com`
+                        })
+                        .in('id', victimIds);
+
+                    if (delError) console.error("Error soft-deleting victims:", delError);
+                    deletedCount += victimIds.length;
+                    mergedCount++;
+                }
+            }
+
+            // 4. Force Pull to update Local State and CLEAN local duplicates
+            await pullFromCloud({ forceCleanLocal: true });
+
+            setIsSyncing(false);
+            return { merged: mergedCount, deleted: deletedCount };
+
+        } catch (e: any) {
+            console.error("Merge error:", e);
+            setIsSyncing(false);
+            return { merged: 0, deleted: 0, error: e.message };
+        }
+    }, [pullFromCloud]);
+
     return {
         isSyncing,
         lastSync,
@@ -411,6 +574,7 @@ export const useCloudSync = () => {
         migrateAllToCloud,
         pullFromCloud,
         wipeCloudData,
-        deleteFromCloud
+        deleteFromCloud,
+        mergeDuplicates
     };
 };

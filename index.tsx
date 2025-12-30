@@ -7,7 +7,7 @@ import ErrorBoundary from './src/components/ui/ErrorBoundary';
 
 // GLOBAL ERROR TRAP for White Screen of Death
 window.onerror = function (message, source, lineno, colno, error) {
-  console.error("Global Error Caught:", message);
+  console.error("Global Error Caught:", message, "Source:", source, "Line:", lineno, "Col:", colno, "Error:", error);
   // Optional: alert("Error Crítico: " + message); // Uncomment to debug broadly
 };
 

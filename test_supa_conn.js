@@ -1,15 +1,19 @@
 
-const url = "https://qpjgijelynprrysxsllv.supabase.co/rest/v1/rb_products?select=count";
+const url = "https://qpjgijelynprrysxsllv.supabase.co/rest/v1/rb_products";
 const key = "sb_publishable_c7blg434TB7FIHrDaV2n2Q_ETCw4nH7";
 
 async function testConnection() {
-    console.log("Testing connection with key:", key);
+    console.log("Testing FORBIDDEN INSERT with key:", key);
     try {
         const response = await fetch(url, {
+            method: 'POST',
             headers: {
                 "apikey": key,
-                "Authorization": `Bearer ${key}`
-            }
+                "Authorization": `Bearer ${key}`,
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal"
+            },
+            body: JSON.stringify({ id: 999999, name: 'Hacker Burger' })
         });
 
         console.log("Status:", response.status);

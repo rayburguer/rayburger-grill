@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import Modal from '../ui/Modal';
 import { User } from '../../types';
-import { calculateLoyaltyTier } from '../../utils/helpers';
+import { calculateLoyaltyTier, normalizePhone, getDeviceFingerprint } from '../../utils/helpers';
 
 interface RegisterModalProps {
     isOpen: boolean;
@@ -15,9 +15,21 @@ interface RegisterModalProps {
     initialReferralCode?: string;
 }
 
+const COUNTRY_PREFIXES = [
+    { code: '58', country: 'Venezuela', flag: '🇻🇪' },
+    { code: '57', country: 'Colombia', flag: '🇨🇴' },
+    { code: '1', country: 'USA/Canadá', flag: '🇺🇸' },
+    { code: '34', country: 'España', flag: '🇪🇸' },
+    { code: '56', country: 'Chile', flag: '🇨🇱' },
+    { code: '593', country: 'Ecuador', flag: '🇪🇨' },
+    { code: '51', country: 'Perú', flag: '🇵🇪' },
+    { code: '54', country: 'Argentina', flag: '🇦🇷' },
+];
+
 const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegister, registeredUsers = [], onOpenLogin, initialReferralCode }) => {
     const [name, setName] = useState<string>('');
     const [lastName, setLastName] = useState<string>('');
+    const [phonePrefix, setPhonePrefix] = useState<string>('58');
     const [phone, setPhone] = useState<string>('');
     const [password, setPassword] = useState<string>('');
     const [birthDate, setBirthDate] = useState<string>('');
@@ -30,24 +42,22 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
     const [passwordError, setPasswordError] = useState<string>('');
     const [referrerError, setReferrerError] = useState<string>('');
 
-    // NEW: Referral code validation handler
+    // Referral code validation
     const handleReferralCodeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value.trim();
         setReferrerCode(value);
 
         if (value.length === 0) {
-            setReferrerError(''); // Clear error if empty
+            setReferrerError('');
         } else {
-            // FIXED: Case-insensitive search with trim
             const codeExists = registeredUsers.some(u =>
                 u.referralCode.toLowerCase() === value.toLowerCase()
             );
-            // System Codes for Marketing
             const isVIPCode = ['VIP_RAY', 'RAYVIP'].includes(value.toUpperCase());
             const isFundadorCode = value.toUpperCase() === 'FUNDADOR';
 
             if (codeExists) {
-                setReferrerError('✓ Código válido'); // Success message
+                setReferrerError('✓ Código válido');
             } else if (isFundadorCode) {
                 setReferrerError('✓ Código FUNDADOR Activo (3x Puntos)');
             } else if (isVIPCode) {
@@ -59,76 +69,71 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
     }, [registeredUsers]);
 
     const handlePhoneChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        // Enforce digits only immediately for UI consistency
         const value = e.target.value.replace(/\D/g, '');
         setPhone(value);
 
-        const normalizedInput = value; // Already normalized
-
-        if (value.length > 0 && value.length !== 11) {
-            setPhoneError('El número debe tener exactamente 11 dígitos.');
-        } else if (value.length === 11 && registeredUsers.some(u => u.phone.replace(/\D/g, '') === normalizedInput)) {
-            setPhoneError('🚫 Este número ya está registrado. Si es tuyo, inicia sesión arriba.');
+        if (value.length > 0 && value.length < 10) {
+            setPhoneError('El número debe tener al menos 10 dígitos.');
         } else {
             setPhoneError('');
         }
-    }, [registeredUsers]);
+    }, []);
 
     const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
         setPassword(value);
-        if (value.length > 0 && value.length < 4) { // Simplified password requirement as per user request
+        if (value.length > 0 && value.length < 4) {
             setPasswordError('Mínimo 4 caracteres.');
         } else {
             setPasswordError('');
         }
     }, []);
 
-    // Allow form submission if referrer error is success message or empty
-    const isFormValid = phone.length === 11 && password.length >= 4 && !phoneError && !passwordError && (referrerError === '' || referrerError.startsWith('✓'));
+    const isFormValid = phone.length >= 10 && password.length >= 4 && !phoneError && !passwordError && (referrerError === '' || referrerError.startsWith('✓'));
 
     const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (!isFormValid || isLoading) return;
 
-        // Final duplicate check (Normalized)
-        const normalizedPhone = phone.replace(/\D/g, '');
-        if (registeredUsers.some(u => u.phone.replace(/\D/g, '') === normalizedPhone)) {
-            setPhoneError('Este número ya está registrado. Inicia Sesión.');
+        // Anti-Fraud check: Complete normalized phone
+        const fullNormalizedPhone = phonePrefix + normalizePhone(phone);
+
+        if (registeredUsers.some(u => normalizePhone(u.phone) === normalizePhone(phone) && u.phone.includes(phonePrefix))) {
+            setPhoneError('🚫 Este número ya está registrado.');
             return;
         }
 
         setIsLoading(true);
-
-        // Simulate network delay for better UX (optional but good for feeling "real")
         await new Promise(resolve => setTimeout(resolve, 800));
 
         const newReferralCode = `RB-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-        const autoGeneratedEmail = `${phone}@rayburger.app`;
+        const autoGeneratedEmail = `${fullNormalizedPhone}@rayburger.app`;
 
         const newUser: User = {
             email: autoGeneratedEmail,
             name: name.trim() || 'Amante de Burger',
             lastName: lastName.trim() || undefined,
-            phone: normalizedPhone,
+            phone: fullNormalizedPhone,
             passwordHash: password,
             referralCode: newReferralCode,
             referredByCode: referrerCode || undefined,
             points: 0,
             loyaltyTier: calculateLoyaltyTier(0),
+            walletBalance_usd: 0,
+            lifetimeSpending_usd: 0,
             orders: [],
             birthDate: birthDate || undefined,
             registrationDate: Date.now(),
             registeredVia: 'web',
             role: 'customer',
-            // FUNDADOR = 3x, VIP/otros = 2x, sin código = 1x
-            nextPurchaseMultiplier: referrerCode?.toUpperCase() === 'FUNDADOR' ? 3 : (referrerCode ? 2 : 1)
+            nextPurchaseMultiplier: referrerCode?.toUpperCase() === 'FUNDADOR' ? 3 : (referrerCode ? 2 : 1),
+            // Security: Device Fingerprint (stored in meta or custom field if needed)
+            // For now we use the phone as primary unique key in Supabase
         };
 
         try {
             onRegister(newUser);
-            // Reset Form managed by parent usually via close, but good practice here
             setName('');
             setPhone('');
             setPassword('');
@@ -139,12 +144,10 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
             setIsLoading(false);
         }
 
-    }, [isFormValid, isLoading, name, phone, password, referrerCode, onRegister, registeredUsers]);
+    }, [isFormValid, isLoading, name, phone, phonePrefix, password, referrerCode, onRegister, registeredUsers]);
 
     useEffect(() => {
         if (!isOpen) {
-            // Reset fields on close, keep referral code if it was passed initially? 
-            // Better to reset fully except if prop persists.
             setName('');
             setLastName('');
             setPhone('');
@@ -153,14 +156,10 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
             setReferrerCode(initialReferralCode || '');
             setPhoneError('');
             setPasswordError('');
-            // Don't reset referrer error yet, wait for validation
             setReferrerError('');
         } else {
-            // If opening, ensure code from prop is set
             if (initialReferralCode) {
                 setReferrerCode(initialReferralCode);
-                // Trigger validation logic for initial code?
-                // Simple check:
                 const codeExists = registeredUsers?.some(u => u.referralCode?.toLowerCase() === initialReferralCode.toLowerCase());
                 if (codeExists) setReferrerError('✓ Código válido (desde enlace)');
             }
@@ -177,30 +176,33 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
         <Modal isOpen={isOpen} onClose={onClose} title="Únete al Club RayBurger">
             <form onSubmit={handleSubmit} className="space-y-4">
 
-                {/* Phone Field (Mandatory) */}
+                {/* Phone Field */}
                 <div>
-                    <label htmlFor="registerPhone" className="block text-white text-lg font-semibold mb-2">
-                        Número de Teléfono (11 dígitos) <span className="text-red-500">*</span>
+                    <label className="block text-white text-lg font-semibold mb-2">
+                        WhatsApp Internacional <span className="text-red-500">*</span>
                     </label>
-                    <input
-                        id="registerPhone"
-                        type="tel"
-                        pattern="[0-9]{11}"
-                        maxLength={11}
-                        placeholder="Ej: 04121234567"
-                        value={phone}
-                        onChange={handlePhoneChange}
-                        required
-                        className={`w-full px-4 py-3 rounded-md bg-gray-700 text-white border-2 ${phoneError ? 'border-red-500' : 'border-gray-600'} focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all duration-300 placeholder-gray-400 text-lg`}
-                    />
+                    <div className="flex gap-2">
+                        <select
+                            value={phonePrefix}
+                            onChange={(e) => setPhonePrefix(e.target.value)}
+                            className="bg-gray-800 text-white border-2 border-gray-600 rounded-md px-2 py-3 focus:border-orange-500 transition-all text-sm outline-none"
+                        >
+                            {COUNTRY_PREFIXES.map(p => (
+                                <option key={p.code} value={p.code}>{p.flag} +{p.code}</option>
+                            ))}
+                        </select>
+                        <input
+                            type="tel"
+                            placeholder="Número (10 dígitos)"
+                            value={phone}
+                            onChange={handlePhoneChange}
+                            required
+                            className={`flex-1 px-4 py-3 rounded-md bg-gray-700 text-white border-2 ${phoneError ? 'border-red-500' : 'border-gray-600'} focus:border-orange-500 transition-all placeholder-gray-400 text-lg outline-none`}
+                        />
+                    </div>
                     {phoneError && (
                         <p className="text-red-500 text-sm mt-1 flex items-center">
                             {phoneError}
-                            {phoneError.includes('ya está registrado') && (
-                                <button type="button" onClick={handleLoginRedirect} className="ml-2 text-orange-400 hover:underline">
-                                    Entrar
-                                </button>
-                            )}
                         </p>
                     )}
                 </div>
@@ -218,57 +220,39 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
                         onChange={handlePasswordChange}
                         required
                         minLength={4}
-                        className={`w-full px-4 py-3 rounded-md bg-gray-700 text-white border-2 ${passwordError ? 'border-red-500' : 'border-gray-600'} focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all duration-300 placeholder-gray-400 text-lg`}
+                        className={`w-full px-4 py-3 rounded-md bg-gray-700 text-white border-2 ${passwordError ? 'border-red-500' : 'border-gray-600'} focus:border-orange-500 transition-all placeholder-gray-400 text-lg outline-none`}
                     />
                     {passwordError && <p className="text-red-500 text-sm mt-1">{passwordError}</p>}
                 </div>
 
-                {/* Nombre (Opcional) */}
-                <div>
-                    <label htmlFor="registerName" className="block text-white text-sm mb-1">Tu Nombre (opcional)</label>
-                    <input
-                        id="registerName"
-                        type="text"
-                        placeholder="Ej: Juan"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="w-full px-4 py-2 rounded-md bg-gray-700 text-white border border-gray-600 focus:border-orange-500 outline-none transition-colors"
-                    />
-                </div>
-
-                {/* Apellido (Recomendado para sorteos) */}
-                <div>
-                    <label htmlFor="registerLastName" className="block text-white text-sm mb-1">
-                        Apellido (recomendado para sorteos 🎲)
-                    </label>
-                    <input
-                        id="registerLastName"
-                        type="text"
-                        placeholder="Ej: Pérez"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        className="w-full px-4 py-2 rounded-md bg-gray-700 text-white border border-gray-600 focus:border-orange-500 outline-none transition-colors"
-                    />
-                    <p className="text-gray-400 text-xs mt-1">💡 Ayuda a evitar confusiones con nombres iguales</p>
-                </div>
-
-                {/* Cumpleaños (Opcional) */}
-                <div>
-                    <label htmlFor="registerBirthday" className="block text-white text-sm mb-1">Cumpleaños (¡Para regalos! 🎁)</label>
-                    <input
-                        id="registerBirthday"
-                        type="date"
-                        value={birthDate}
-                        onChange={(e) => setBirthDate(e.target.value)}
-                        className="w-full px-4 py-2 rounded-md bg-gray-700 text-white border border-gray-600 focus:border-orange-500 outline-none transition-colors"
-                    />
+                {/* Info Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label className="block text-white text-xs mb-1 uppercase font-bold tracking-wider">Nombre</label>
+                        <input
+                            type="text"
+                            placeholder="Ej: Juan"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full px-4 py-2 rounded-md bg-gray-700 text-white border border-gray-600 focus:border-orange-500 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-white text-xs mb-1 uppercase font-bold tracking-wider">Apellido</label>
+                        <input
+                            type="text"
+                            placeholder="Ej: Pérez"
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
+                            className="w-full px-4 py-2 rounded-md bg-gray-700 text-white border border-gray-600 focus:border-orange-500 outline-none"
+                        />
+                    </div>
                 </div>
 
                 {/* Referrer */}
                 <div className="mt-2">
-                    <label htmlFor="referrerCode" className="block text-white text-sm mb-1">¿Tienes código de referido?</label>
+                    <label className="block text-white text-sm mb-1 uppercase font-bold tracking-wider opacity-60">¿Tienes código de referido?</label>
                     <input
-                        id="referrerCode"
                         type="text"
                         placeholder="Pégalo aquí"
                         value={referrerCode}
@@ -285,21 +269,14 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onRegist
                 <button
                     type="submit"
                     disabled={!isFormValid || isLoading}
-                    className={`w-full mt-6 py-3 rounded-full text-lg font-bold transition-all duration-200 flex items-center justify-center gap-2 ${isFormValid && !isLoading ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg shadow-orange-900/40 active:scale-95' : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                    className={`w-full mt-6 py-4 rounded-full text-lg font-black uppercase tracking-widest transition-all ${isFormValid && !isLoading ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-xl active:scale-95' : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                         }`}
                 >
-                    {isLoading ? (
-                        <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            Registrando...
-                        </>
-                    ) : (
-                        '¡Registrarme!'
-                    )}
+                    {isLoading ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : '¡Registrarme! 🚀'}
                 </button>
             </form>
-            <p className="text-gray-400 text-center mt-4 text-sm">
-                ¿Ya eres parte del club?{' '}
+            <p className="text-gray-400 text-center mt-6 text-sm">
+                ¿Ya eres parte?{' '}
                 <button type="button" onClick={handleLoginRedirect} className="text-orange-400 hover:underline font-bold">
                     Entra aquí
                 </button>

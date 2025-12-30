@@ -18,53 +18,68 @@ export const useSettings = () => {
         return saved ? JSON.parse(saved) : [];
     });
 
-    // Debounced save functions
-    const saveTasaDebounced = useRef(
+    // Debounced save functions for local storage
+    const saveTasaLocal = useRef(
         debounce((tasa: number) => {
             safeLocalStorage.setItem('rayburger_tasa', tasa.toString());
         }, 500)
     ).current;
 
-    const saveGuestOrdersDebounced = useRef(
+    const saveGuestOrdersLocal = useRef(
         debounce((orders: Order[]) => {
             safeLocalStorage.setItem('rayburger_guest_orders', JSON.stringify(orders));
         }, 500)
     ).current;
 
+    // Sync between tabs
     useEffect(() => {
-        saveTasaDebounced(tasaBs);
-    }, [tasaBs, saveTasaDebounced]);
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === 'rayburger_tasa' && e.newValue) {
+                const val = Number(e.newValue);
+                if (!isNaN(val) && val !== tasaBs) {
+                    setTasaBs(val);
+                }
+            }
+            if (e.key === 'rayburger_guest_orders' && e.newValue) {
+                try {
+                    const orders = JSON.parse(e.newValue);
+                    setGuestOrders(orders);
+                } catch (err) {
+                    console.error("Failed to sync guest orders from storage", err);
+                }
+            }
+        };
 
-    useEffect(() => {
-        saveGuestOrdersDebounced(guestOrders);
-    }, [guestOrders, saveGuestOrdersDebounced]);
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+    }, [tasaBs]);
 
     const updateTasa = useCallback(async (newTasa: number) => {
         if (newTasa > 0) {
             setTasaBs(newTasa);
-            // Sync tasa to cloud (we use a specific key for this in cloud sync)
+            saveTasaLocal(newTasa);
+            // Instant sync to cloud
             await pushToCloud('rb_settings', [{ id: 'tasa', value: newTasa }]);
         }
-    }, [pushToCloud]);
+    }, [pushToCloud, saveTasaLocal]);
 
     const addGuestOrder = useCallback(async (order: Order) => {
         setGuestOrders(prev => {
             const newList = [...prev, order];
-            // Since this is inside setGuestOrders, we can't easily await here.
-            // But we can trigger a cloud push with the NEW total list.
+            saveGuestOrdersLocal(newList);
+
+            // Push to cloud using the absolute latest list
+            pushToCloud('rb_orders', newList.map(o => ({ ...o, id: o.orderId })));
+
             return newList;
         });
-
-        // Better flow: get current list and push
-        const currentOrders = JSON.parse(safeLocalStorage.getItem('rayburger_guest_orders') || '[]');
-        const updatedList = [...currentOrders, order];
-        await pushToCloud('rb_orders', updatedList.map(o => ({ ...o, id: o.orderId })));
-    }, [pushToCloud]);
+    }, [pushToCloud, saveGuestOrdersLocal]);
 
     const updateGuestOrders = useCallback(async (updatedOrders: Order[]) => {
         setGuestOrders(updatedOrders);
+        saveGuestOrdersLocal(updatedOrders);
         await pushToCloud('rb_orders', updatedOrders.map(o => ({ ...o, id: o.orderId })));
-    }, [pushToCloud]);
+    }, [pushToCloud, saveGuestOrdersLocal]);
 
     return {
         tasaBs,

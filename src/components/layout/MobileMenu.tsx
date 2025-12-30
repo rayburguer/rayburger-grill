@@ -1,15 +1,14 @@
 import React from 'react';
-import { X, TrendingUp, Gift } from 'lucide-react';
+import { X, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface MobileMenuProps {
     isOpen: boolean;
     onClose: () => void;
-    onOpenLeaderboard: () => void;
     onOpenRoulette: () => void;
 }
 
-const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose, onOpenLeaderboard, onOpenRoulette }) => {
+const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose, onOpenRoulette }) => {
     return (
         <AnimatePresence>
             {isOpen && (

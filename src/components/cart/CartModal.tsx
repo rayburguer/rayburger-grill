@@ -17,9 +17,8 @@ interface CartModalProps {
 }
 
 import { useAuth } from '../../hooks/useAuth';
-import { useLoyalty } from '../../hooks/useLoyalty';
 import { LOYALTY_TIERS } from '../../config/constants';
-import { Trophy, Gift, Sparkles } from 'lucide-react'; // Import icons
+import { Trophy } from 'lucide-react'; // Import icons
 
 const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, totalUsd, onRemoveItem, onUpdateItemQuantity, onProceedToCheckout, allProducts, onQuickAdd }) => {
     // Get upsell items (Extras/Drinks/Sauces that are NOT in the cart yet)
