@@ -1,0 +1,11 @@
+﻿
+> rayburgergrill-app@1.0.0 lint
+> eslint . --report-unused-disable-directives --max-warnings 0
+
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\__tests__\useServerSafety.test.ts
+  2:10  warning  'supabase' is defined but never used             @typescript-eslint/no-unused-vars
+  5:7   warning  'consoleSpy' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+Γ£û 2 problems (0 errors, 2 warnings)
+

@@ -1,0 +1,10 @@
+Categories counts:
+{
+  "Combos": 7,
+  "Hamburguesas": 8,
+  "Perros": 4,
+  "Extras": 8,
+  "Bebidas": 2
+}
+
+Duplicate names:

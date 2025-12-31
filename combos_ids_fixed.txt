@@ -1,0 +1,58 @@
+[
+  {
+    "id": 101,
+    "name": "Pack Clásico"
+  },
+  {
+    "id": 16,
+    "name": "Combo Chess Beacon"
+  },
+  {
+    "id": 17,
+    "name": "Combo Victoria Cheese"
+  },
+  {
+    "id": 18,
+    "name": "Combo Crispy Burger"
+  },
+  {
+    "id": 102,
+    "name": "Cheese Bacon Special"
+  },
+  {
+    "id": 103,
+    "name": "Crispy Burger"
+  },
+  {
+    "id": 104,
+    "name": "Victoria Cheese"
+  },
+  {
+    "id": 105,
+    "name": "Squad Clásico"
+  },
+  {
+    "id": 106,
+    "name": "Squad Especial"
+  },
+  {
+    "id": 107,
+    "name": "Squad Jumbo"
+  },
+  {
+    "id": 15,
+    "name": "Combo Clásicas"
+  },
+  {
+    "id": 19,
+    "name": "Combo Perros Clásicos"
+  },
+  {
+    "id": 20,
+    "name": "Combo Perros Especiales"
+  },
+  {
+    "id": 21,
+    "name": "Combo Perros Jumbo"
+  }
+]

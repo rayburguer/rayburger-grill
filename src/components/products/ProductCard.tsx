@@ -25,7 +25,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenProductDetail,
             animate={{ opacity: 1, scale: 1 }}
             whileHover={{ y: -10, scale: 1.02 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            className={`group relative bg-[#131926]/60 backdrop-blur-xl rounded-[2.5rem] border border-white/5 shadow-2xl overflow-visible mt-16 ${isAvailable ? 'cursor-pointer' : 'cursor-not-allowed opacity-75'}`}
+            className={`group relative bg-black/95 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl overflow-visible mt-16 ${isAvailable ? 'cursor-pointer active:scale-[0.98]' : 'cursor-not-allowed opacity-75'} transition-transform`}
             onClick={() => isAvailable && onOpenProductDetail(product)}
         >
             {/* SOLD OUT BADGE */}
@@ -65,11 +65,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenProductDetail,
 
             <div className="pt-28 pb-6 px-6 text-center">
                 <div className="mb-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-orange-400 bg-orange-500/10 px-2 py-1 rounded-md">
+                    <span className="text-xs font-bold uppercase tracking-wider text-orange-400 bg-orange-500/20 px-3 py-1.5 rounded-lg">
                         {product.category}
                     </span>
                 </div>
-                <h3 className={`text-2xl font-anton mb-1 leading-tight transition-colors uppercase tracking-tight ${isAvailable ? 'text-white group-hover:text-orange-400' : 'text-gray-500'}`}>
+                <h3 className={`text-2xl md:text-3xl font-anton mb-2 leading-tight transition-colors uppercase tracking-tight ${isAvailable ? 'text-white group-hover:text-orange-400' : 'text-gray-500'}`}>
                     {product.name}
                 </h3>
 
@@ -86,7 +86,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenProductDetail,
 
                 {/* Description */}
                 {product.description && (
-                    <p className="text-sm text-gray-400 leading-relaxed mb-4 line-clamp-3">
+                    <p className="text-sm text-gray-300 leading-relaxed mb-4 line-clamp-2">
                         {product.description}
                     </p>
                 )}
@@ -107,7 +107,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenProductDetail,
                         whileTap={{ scale: 0.8 }}
                         whileHover={{ scale: 1.1 }}
                         disabled={!isAvailable}
-                        className={`w-14 h-14 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-white shadow-xl transition-all ${isAvailable
+                        className={`min-w-[56px] min-h-[56px] w-14 h-14 rounded-full flex items-center justify-center text-white shadow-xl transition-all active:scale-90 ${isAvailable
                             ? 'bg-orange-600 shadow-orange-600/40 hover:bg-orange-500 hover:shadow-orange-500/60'
                             : 'bg-gray-700 shadow-none cursor-not-allowed'
                             }`}
@@ -126,7 +126,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenProductDetail,
                             }
                         }}
                     >
-                        <Plus size={28} className="sm:size-20" />
+                        <Plus size={24} strokeWidth={3} />
                     </motion.button>
                 </div>
             </div>

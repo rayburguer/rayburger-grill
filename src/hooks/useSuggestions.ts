@@ -1,15 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Suggestion } from '../types';
 
 export const useSuggestions = () => {
-    const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-
-    useEffect(() => {
+    const [suggestions, setSuggestions] = useState<Suggestion[]>(() => {
         const saved = localStorage.getItem('rayburger_suggestions');
-        if (saved) {
-            setSuggestions(JSON.parse(saved));
-        }
-    }, []);
+        return saved ? JSON.parse(saved) : [];
+    });
 
     const saveSuggestions = useCallback((newSuggestions: Suggestion[]) => {
         setSuggestions(newSuggestions);

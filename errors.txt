@@ -1,6 +1,4 @@
-src/components/loyalty/RouletteModal.tsx(15,100): error TS6133: 'onShowToast' is declared but its value is never read.
-src/components/loyalty/RouletteModal.tsx(33,38): error TS18048: 'currentUser.lastSpinDate' is possibly 'undefined'.
-src/components/orders/OrderTracker.tsx(31,47): error TS2339: Property 'id' does not exist on type 'Order'.
-src/components/recommendations/RecommendationSection.tsx(1,27): error TS6133: 'useMemo' is declared but its value is never read.
-src/components/recommendations/RecommendationSection.tsx(104,5): error TS2304: Cannot find name 'useEffect'.
-src/components/ui/ErrorBoundary.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+﻿src/components/admin/AdminDashboard.tsx(2,1): error TS6133: 'WELCOME_BONUS_USD' is declared but its value is never read.
+src/components/admin/AdminDashboard.tsx(20,1): error TS6133: 'normalizePhone' is declared but its value is never read.
+src/components/admin/AdminDashboard.tsx(21,1): error TS6133: 'triggerSuccessConfetti' is declared but its value is never read.
+src/components/admin/AdminDashboard.tsx(234,37): error TS2304: Cannot find name 'persistence'.

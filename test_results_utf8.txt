@@ -1,0 +1,22 @@
+﻿
+> rayburgergrill-app@1.0.0 test
+> vitest run
+
+
+[1m[46m RUN [49m[22m [36mv4.0.16 [39m[90mC:/Users/raimundo/OneDrive/Escritorio/pruebaloca[39m
+
+ [31mΓ¥»[39m src/hooks/__tests__/useLoyalty.test.ts [2m([22m[2m8 tests[22m[2m | [22m[31m4 failed[39m[2m)[22m[32m 100[2mms[22m[39m
+[31m     [31m├ù[31m calculates 5% reward for Bronze tier[39m[32m 66[2mms[22m[39m
+[31m     [31m├ù[31m calculates 8% reward for Silver tier[39m[32m 5[2mms[22m[39m
+[31m     [31m├ù[31m applies 3x multiplier for FUNDADOR code within 30 days[39m[32m 4[2mms[22m[39m
+[31m     [31m├ù[31m does NOT apply 3x multiplier for FUNDADOR code after 30 days[39m[32m 7[2mms[22m[39m
+     [32mΓ£ô[39m calculates referrer bonus (2%) correctly[32m 7[2mms[22m[39m
+     [32mΓ£ô[39m updates wallet balance correctly when using balance[32m 2[2mms[22m[39m
+     [32mΓ£ô[39m prevents rewards for admin users[32m 2[2mms[22m[39m
+     [32mΓ£ô[39m checks roulette cooldown correctly[32m 2[2mms[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m4 failed[39m[22m[2m | [22m[1m[32m4 passed[39m[22m[90m (8)[39m
+[2m   Start at [22m 01:47:28
+[2m   Duration [22m 19.26s[2m (transform 1.51s, setup 2.52s, import 2.16s, tests 100ms, environment 13.30s)[22m
+

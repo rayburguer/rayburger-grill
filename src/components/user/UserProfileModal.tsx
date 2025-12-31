@@ -54,7 +54,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
 
     const isOwner = (
         user.email === 'raimundovivas17@gmail.com' ||
-        ['04128344594', '04243439729', '04162101833'].includes(user.phone) ||
+        ['04128344594', '584128344594', '04243439729', '584243439729', '04162101833', '584162101833'].includes(user.phone) ||
         user.role === 'admin' // Keep existing admins as owners too
     );
 
@@ -218,7 +218,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                                     {user.orders.slice().reverse().map(order => (
                                         <tr key={order.orderId} className="hover:bg-gray-700 transition-colors duration-200">
                                             <td className="px-4 py-2 whitespace-nowrap text-sm">
-                                                <div className="text-white font-medium">#{order.orderId.substring(0, 6)}...</div>
+                                                <div className="text-white font-medium">#{order.orderId.substring(0, 12).toUpperCase()}</div>
                                                 <div className="text-gray-400 text-xs">{new Date(order.timestamp).toLocaleDateString()}</div>
                                             </td>
                                             <td className="px-4 py-2 whitespace-nowrap text-sm">

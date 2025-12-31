@@ -166,10 +166,10 @@ export const CashRegisterReport: React.FC<CashRegisterReportProps> = ({ orders, 
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-sm text-right font-bold text-green-400">
-                                                ${order.totalUsd.toFixed(2)}
+                                                ${(order.totalUsd || (order as any).total_usd || 0).toFixed(2)}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-right font-bold text-blue-400">
-                                                Bs {(order.totalUsd * tasaBs).toFixed(2)}
+                                                Bs {((order.totalUsd || (order as any).total_usd || 0) * tasaBs).toFixed(2)}
                                             </td>
                                         </tr>
                                     ))}
@@ -180,10 +180,10 @@ export const CashRegisterReport: React.FC<CashRegisterReportProps> = ({ orders, 
                                             Total del Día:
                                         </td>
                                         <td className="px-4 py-4 text-right text-lg font-black text-green-400">
-                                            ${totalUSD.toFixed(2)}
+                                            ${(totalUSD || 0).toFixed(2)}
                                         </td>
                                         <td className="px-4 py-4 text-right text-lg font-black text-blue-400">
-                                            Bs {totalBs.toFixed(2)}
+                                            Bs {(totalBs || 0).toFixed(2)}
                                         </td>
                                     </tr>
                                 </tfoot>

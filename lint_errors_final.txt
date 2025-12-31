@@ -1,0 +1,10 @@
+﻿
+> rayburgergrill-app@1.0.0 lint
+> eslint . --report-unused-disable-directives --max-warnings 0
+
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\ui\ImageUploader.tsx
+  32:11  warning  The 'uploadImage' function makes the dependencies of useCallback Hook (at line 90) change on every render. To fix this, wrap the definition of 'uploadImage' in its own useCallback() Hook  react-hooks/exhaustive-deps
+
+Γ£û 1 problem (0 errors, 1 warning)
+

@@ -1,0 +1,34 @@
+{
+  "total_users": 11,
+  "admins": [
+    {
+      "name": "raimundo",
+      "phone": "584128344594",
+      "email": "584128344594@rayburger.app"
+    }
+  ],
+  "active_customers": 10,
+  "deleted_users": 0,
+  "last_5_active": [
+    {
+      "name": "Cliente Prueba 9266",
+      "phone": "+584120009266"
+    },
+    {
+      "name": "Cliente Prueba 4821",
+      "phone": "+584120004821"
+    },
+    {
+      "name": "Cliente Prueba 3784",
+      "phone": "+584120003784"
+    },
+    {
+      "name": "Cliente Prueba 7342",
+      "phone": "+584120007342"
+    },
+    {
+      "name": "Cliente Prueba 3889",
+      "phone": "+584120003889"
+    }
+  ]
+}

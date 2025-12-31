@@ -9,6 +9,10 @@
  * @returns Hexadecimal string of the hash
  */
 export async function hashPassword(text: string): Promise<string> {
+    if (typeof window === 'undefined' || !window.crypto || !window.crypto.subtle) {
+        console.warn('⚠️ Crypto API no disponible (¿Conexión no segura?). Usando modo fallback.');
+        return `legacy_${text}`;
+    }
     const encoder = new TextEncoder();
     const data = encoder.encode(text);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);

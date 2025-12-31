@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { User, Order, CartItem } from '../types';
 import { REWARD_TIER_RATES, REFERRAL_REWARD_RATE, ROULETTE_COOLDOWN_DAYS, ROULETTE_PRIZES, RoulettePrize } from '../config/constants';
-import { calculateLoyaltyTier, generateUuid } from '../utils/helpers';
+import { generateUuid } from '../utils/helpers';
 import { supabase } from '../lib/supabase';
 
 interface ProcessOrderResult {
@@ -68,7 +68,8 @@ export const useLoyalty = () => {
         let referrerBonus = 0;
         if (buyer.referredByCode) {
             const referrer = allUsers.find(u => u.referralCode === buyer.referredByCode);
-            if (referrer) {
+            // 🛡️ ETHICS CHECK: Referrer does NOT earn if they are an admin
+            if (referrer && referrer.role !== 'admin') {
                 referrerBonus = totalUsd * REFERRAL_REWARD_RATE;
             }
         }
@@ -119,82 +120,29 @@ export const useLoyalty = () => {
 
     }, []);
 
-    // 2. Approve Order (Actually apply rewards and update tier)
+    // 2. Approve Order (UI Sync only - math happens in rpc_approve_order)
     const confirmOrderRewards = useCallback((
         orderId: string,
         buyerEmail: string,
         allUsers: User[]
     ): User[] => {
-        const buyer = allUsers.find(u => u.email === buyerEmail);
-        if (!buyer) return allUsers;
-
-        const order = buyer.orders.find(o => o.orderId === orderId);
-        if (!order || order.status === 'approved') return allUsers;
-
         return allUsers.map(u => {
             if (u.email === buyerEmail) {
-                const updatedOrders = u.orders.map(o => o.orderId === orderId ? { ...o, status: 'approved' as const } : o);
-
-                // Update Wallet and Spend
-                const newLifetimeSpend = u.lifetimeSpending_usd + (order.totalUsd - (order.balanceUsed_usd || 0));
-                const newWalletBalance = u.walletBalance_usd + order.rewardsEarned_usd;
-
                 return {
                     ...u,
-                    walletBalance_usd: newWalletBalance,
-                    lifetimeSpending_usd: newLifetimeSpend,
-                    orders: updatedOrders,
-                    nextPurchaseMultiplier: 1,
-                    loyaltyTier: calculateLoyaltyTier(newLifetimeSpend)
+                    orders: u.orders.map(o => o.orderId === orderId ? { ...o, status: 'approved' as const, paymentStatus: 'paid' as const } : o)
                 };
             }
-
-
-            // Referrer Bonus (LIFETIME: 2% of every approved purchase)
-            // But check if Referrer is active or if there are limits? User said "De por vida".
-            // Also user mentioned "30 días vence". This might mean the *points* expire or something else, 
-            // but for now we implement LIFETIME 2%.
-
-            if (buyer.referredByCode && u.referralCode === buyer.referredByCode && u.role !== 'admin') {
-                // REMOVED CHECK for previouslyApproved.length === 0 to make it LIFETIME
-
-                const referrerReward = order.totalUsd * REFERRAL_REWARD_RATE;
-                const newStats = { ...(u.referralStats || { totalReferred: 0, referredThisMonth: 0, referredToday: 0 }) };
-
-                // Only increment stats on first purchase to avoid inflating "Referred Users" count
-                const previouslyApproved = buyer.orders.filter(o => o.orderId !== orderId && o.status === 'approved');
-                if (previouslyApproved.length === 0) {
-                    newStats.totalReferred += 1;
-                }
-
-                // VIRAL AMBASSADOR LOGIC:
-                // Add referral spend to Referrer's Lifetime Spending to help them level up!
-                const newLifetimeSpend = (u.lifetimeSpending_usd || 0) + order.totalUsd;
-                const newTier = calculateLoyaltyTier(newLifetimeSpend);
-
-                return {
-                    ...u,
-                    walletBalance_usd: u.walletBalance_usd + referrerReward,
-                    lifetimeSpending_usd: newLifetimeSpend,
-                    loyaltyTier: newTier, // UPGRADE TIER IF APPLICABLE
-                    referralStats: newStats
-                }
-            }
-
             return u;
         });
     }, []);
 
-    // 3. Reject Order (Restore balance if was used)
+    // 3. Reject Order (UI Sync only - refund happens in rpc_reject_order)
     const rejectOrder = useCallback((orderId: string, buyerEmail: string, allUsers: User[]) => {
         return allUsers.map(u => {
             if (u.email === buyerEmail) {
-                const order = u.orders.find(o => o.orderId === orderId);
-                const restoredBalance = order?.balanceUsed_usd || 0;
-
                 return {
                     ...u,
-                    walletBalance_usd: u.walletBalance_usd + restoredBalance,
                     orders: u.orders.map(o => o.orderId === orderId ? { ...o, status: 'rejected' as const } : o)
                 };
             }
@@ -212,6 +160,7 @@ export const useLoyalty = () => {
     }, []);
 
     const spinRoulette = useCallback((user: User): { result: RoulettePrize, updatedUser: User } => {
+        if (user.role === 'admin') throw new Error('Los administradores no participan en promociones');
         if (!canSpin(user)) throw new Error('Cooldown active');
 
         const random = Math.random() * 100;
@@ -226,10 +175,13 @@ export const useLoyalty = () => {
             }
         }
 
-        let updatedUser = { ...user, lastSpinDate: Date.now() };
-        if (selectedPrize.type === 'usd') {
-            updatedUser.walletBalance_usd += selectedPrize.value;
-        }
+        const updatedUser = {
+            ...user,
+            lastSpinDate: Date.now(),
+            walletBalance_usd: selectedPrize.type === 'usd'
+                ? user.walletBalance_usd + selectedPrize.value
+                : user.walletBalance_usd
+        };
 
         return { result: selectedPrize, updatedUser };
     }, [canSpin]);

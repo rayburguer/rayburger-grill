@@ -21,6 +21,8 @@ import { LOYALTY_TIERS } from '../../config/constants';
 import { Trophy } from 'lucide-react'; // Import icons
 
 const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, totalUsd, onRemoveItem, onUpdateItemQuantity, onProceedToCheckout, allProducts, onQuickAdd }) => {
+    const { currentUser } = useAuth();
+
     // Get upsell items (Extras/Drinks/Sauces that are NOT in the cart yet)
     const upsellItems = allProducts
         .filter(p => ['Extras', 'Bebidas', 'Salsas'].includes(p.category) && !cart.some(item => item.id === p.id))
@@ -117,7 +119,6 @@ const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, cart, totalUsd, 
 
                     {/* REDEMPTION SECTION (NEW) */}
                     {(() => {
-                        const { currentUser } = useAuth();
                         // Assuming getAvailableRewards is not exported, we use raw logic or a helper. 
                         // Simplified Redemption Logic for speed:
                         const points = currentUser?.points || 0;

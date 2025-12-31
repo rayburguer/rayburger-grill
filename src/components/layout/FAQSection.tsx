@@ -12,7 +12,12 @@ const faqs = [
     {
         icon: <Award className="text-yellow-400" size={20} />,
         question: "¿Cómo subo de nivel y gano más?",
-        answer: "Tu nivel depende de cuánto has comprado en total históricamente: **Bronze** (Empiezas ganando 3%), **Silver** (Ganas 5% al superar $150 en compras) y **Gold** (Ganas 8% al superar $300). ¡Mientras más disfrutas, más ganas!"
+        answer: "Tu nivel depende de tus **puntos acumulados**: **Bronze** (0-99 pts, ganas 3%), **Silver** (100-499 pts, ganas 5%), **Gold** (500-999 pts, ganas 8%), **Diamond** (1000+ pts, ganas 10%). ¡Mientras más disfrutas, más ganas!"
+    },
+    {
+        icon: <Star className="text-orange-400" size={20} />,
+        question: "¿Cómo gano puntos?",
+        answer: "Ganas **1 punto por cada dólar** que gastes. Por ejemplo, si compras una hamburguesa de $5, ganas 5 puntos. Estos puntos determinan tu nivel y cuánto cashback recibes en tu billetera."
     },
     {
         icon: <Clock className="text-blue-400" size={20} />,
@@ -25,9 +30,9 @@ const faqs = [
         answer: "¡Premios gratis! Si estás registrado y has hecho al menos una compra, cada semana tienes un tiro en la Ruleta. Puedes ganar saldo extra para tu billetera, papas fritas o hasta hamburguesas gratis."
     },
     {
-        icon: <Star className="text-orange-400" size={20} />,
+        icon: <MessageCircle className="text-green-400" size={20} />,
         question: "¿Qué beneficios tienen los Invitados?",
-        answer: "Los invitados pueden comprar rápido sin registrarse, pero **NO acumulan saldo en su billetera** ni suben de nivel. Te recomendamos registrarte (toma 10 segundos) para que cada dólar que gastes te regrese dinero."
+        answer: "Los invitados pueden comprar rápido sin registrarse, pero **NO acumulan puntos** ni saldo en su billetera, ni suben de nivel. Te recomendamos registrarte (toma 10 segundos) para que cada dólar que gastes te regrese dinero."
     },
     {
         icon: <MessageCircle className="text-green-500" size={20} />,

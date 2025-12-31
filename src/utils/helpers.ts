@@ -5,11 +5,6 @@ export const generateUuid = () => {
     });
 };
 
-export const calculateLoyaltyTier = (totalSpend: number): string => {
-    if (totalSpend >= 500) return 'Gold';
-    if (totalSpend >= 100) return 'Silver';
-    return 'Bronze';
-};
 
 export const formatCurrency = (amount: number, currency = 'USD') => {
     return new Intl.NumberFormat('en-US', {

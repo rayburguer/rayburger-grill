@@ -6,7 +6,7 @@ import { useCloudSync } from './useCloudSync';
 
 export const useProducts = () => {
     const [products, setProducts] = useState<Product[]>([]);
-    const { replaceInCloud } = useCloudSync();
+    const { pushToCloud, deleteFromCloud } = useCloudSync();
 
     // Flag to prevent re-initialization
     const initializedRef = useRef(false);
@@ -110,35 +110,35 @@ export const useProducts = () => {
                 setProducts(syncedProducts);
                 currentProducts = syncedProducts;
                 safeLocalStorage.setItem('rayburger_products', JSON.stringify(syncedProducts));
-                // We don't await here to not block the boot, but we update cloud in background
-                replaceInCloud('rb_products', syncedProducts);
+                // 🛡️ SECURITY FIX: Use pushToCloud (upsert) instead of replaceInCloud to avoid nuclear deletion of custom manual products
+                pushToCloud('rb_products', syncedProducts);
             }
 
-            // 2. Fetch from Cloud ONLY IF LOCAL IS EMPTY (Initialization Phase)
-            // Or if we are using sample data and want to check if there's a real cloud version
-            const isUsingSampleData = !storedProducts;
+            // 2. ALWAYS Pull from Cloud to sync with Master Menu
+            // This ensures PC edits are propagated to Phone immediately.
+            try {
+                const { supabase: supabaseClient } = await import('../lib/supabase');
+                if (supabaseClient) {
+                    const { data, error } = await supabaseClient.from('rb_products').select('*');
 
-            if (isUsingSampleData) {
-                try {
-                    const { supabase } = await import('../lib/supabase');
-                    if (supabase) {
-                        const { data, error } = await supabase.from('rb_products').select('*');
+                    if (!error && data && data.length > 0) {
+                        const cloudProducts = data as Product[];
+                        console.log("☁️ Menu synced from Cloud Master.");
 
-                        if (!error && data && data.length > 0) {
-                            const cloudProducts = data as Product[];
-                            console.log("☁️ Seeding from Cloud...");
-                            setProducts(cloudProducts);
-                            safeLocalStorage.setItem('rayburger_products', JSON.stringify(cloudProducts));
-                        }
+                        // Merge Strategy: Cloud products overwrite local ones with same ID, 
+                        // but we keep local-only products (might be drafts).
+                        // Actually, for consistency, Cloud should be MASTER.
+                        setProducts(cloudProducts);
+                        safeLocalStorage.setItem('rayburger_products', JSON.stringify(cloudProducts));
                     }
-                } catch (err) {
-                    // Silent fail
                 }
+            } catch (err) {
+                console.warn("☁️ Could not sync menu from cloud, using local cache.", err);
             }
         };
 
         loadProducts();
-    }, []); // ✅ FIXED: Removed replaceInCloud dependency to prevent infinite loop
+    }, [pushToCloud]); // ✅ FIXED: Added pushToCloud dependency
 
     useEffect(() => {
         const handleStorageChange = (e: Event) => {
@@ -170,33 +170,38 @@ export const useProducts = () => {
     const addProduct = useCallback(async (product: Product) => {
         const newProducts = [...products, product];
         saveProducts(newProducts);
-        await replaceInCloud('rb_products', newProducts);
-    }, [products, saveProducts, replaceInCloud]);
+        // 🚀 SUCCESS: Targeted Push (no nuclear risk)
+        await pushToCloud('rb_products', [product]);
+    }, [products, saveProducts, pushToCloud]);
 
     const updateProduct = useCallback(async (updatedProduct: Product) => {
         const newProducts = products.map(p => p.id === updatedProduct.id ? updatedProduct : p);
         saveProducts(newProducts);
-        await replaceInCloud('rb_products', newProducts);
-    }, [products, saveProducts, replaceInCloud]);
+        // 🚀 SUCCESS: Targeted Update
+        await pushToCloud('rb_products', [updatedProduct]);
+    }, [products, saveProducts, pushToCloud]);
 
     const deleteProduct = useCallback(async (productId: number) => {
         const newProducts = products.filter(p => p.id !== productId);
         saveProducts(newProducts);
-        await replaceInCloud('rb_products', newProducts);
-    }, [products, saveProducts, replaceInCloud]);
+        // 🚀 SUCCESS: Targeted Delete
+        await deleteFromCloud('rb_products', productId.toString());
+    }, [products, saveProducts, deleteFromCloud]);
 
     const resetToSample = useCallback(async () => {
-        if (confirm('¿Estás seguro de que quieres borrar el menú actual y cargar el menú oficial del código? Se perderán los cambios manuales y se sobrescribirá la nube.')) {
+        if (confirm('¿Estás seguro de que quieres borrar el menú actual y cargar el menú oficial del código? Se perderán los cambios manuales.')) {
+            // We use pushToCloud to ensure the official items exist. 
+            // We don't use 'replace' because we want to avoid accidental mass deletion.
             saveProducts(SAMPLE_PRODUCTS);
-            const { error } = await replaceInCloud('rb_products', SAMPLE_PRODUCTS);
+            const { error } = await pushToCloud('rb_products', SAMPLE_PRODUCTS);
 
             if (error) {
                 alert(`❌ Error al limpiar la nube: ${error}. Los cambios se guardaron solo localmente.`);
             } else {
-                alert('✅ Menú Oficial restaurado y NUBE LIMPIA. El "menú loco" ha sido eliminado.');
+                alert('✅ Menú Oficial restaurado. Los productos oficiales han sido actualizados en la nube.');
             }
         }
-    }, [saveProducts, replaceInCloud]);
+    }, [saveProducts, pushToCloud]);
 
     return {
         products,

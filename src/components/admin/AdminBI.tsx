@@ -33,7 +33,7 @@ export const AdminBI: React.FC<AdminBIProps> = ({ orders }) => {
             // Daily Sales
             const dateKey = new Date(order.timestamp).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
             if (dailyMap.has(dateKey)) {
-                dailyMap.set(dateKey, dailyMap.get(dateKey) + (order.totalUsd || 0));
+                dailyMap.set(dateKey, dailyMap.get(dateKey) + (order.totalUsd || (order as any).total_usd || 0));
             }
 
             // Top Products
@@ -61,7 +61,7 @@ export const AdminBI: React.FC<AdminBIProps> = ({ orders }) => {
             dailyData,
             productData,
             deliveryData,
-            totalSales: validOrders.reduce((acc, o) => acc + (o.totalUsd || 0), 0),
+            totalSales: validOrders.reduce((acc, o) => acc + (o.totalUsd || (o as any).total_usd || 0), 0),
             validCount: validOrders.length
         };
     }, [orders]);

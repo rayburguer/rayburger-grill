@@ -26,17 +26,21 @@ import InstallPrompt from '../../components/ui/InstallPrompt';
 import RouletteModal from '../../components/loyalty/RouletteModal';
 import { RankingSection } from '../../components/sections/RankingSection';
 import { IngredientVoting } from '../../components/voting/IngredientVoting';
+import { BottomNavigation } from '../../components/ui/BottomNavigation';
 
 import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
 import { useProducts } from '../../hooks/useProducts';
-import { useLoyalty } from '../../hooks/useLoyalty';
+// import { useLoyalty } from '../../hooks/useLoyalty'; // Not used
 import { useSurveys } from '../../hooks/useSurveys';
 import { useSettings } from '../../hooks/useSettings';
 import { useCloudSync } from '../../hooks/useCloudSync';
+import { useSecureCheckout } from '../../hooks/useSecureCheckout';
+import { getDeviceFingerprint } from '../../utils/helpers';
+import { mapDbUserToApp } from '../../utils/dbMapper';
 
 // Data & Config
-import { ALL_CATEGORIES_KEY, SKIP_LINK_ID, WELCOME_BONUS_USD } from '../../config/constants'; // Fix path
+import { ALL_CATEGORIES_KEY, SKIP_LINK_ID } from '../../config/constants'; // Fix path
 import { generateUuid, normalizePhone } from '../../utils/helpers';
 import '../../index.css';
 import { Product, User, Order } from '../../types'; // Fix path
@@ -72,7 +76,7 @@ const Storefront: React.FC = () => {
             try {
                 const parsed = JSON.parse(saved);
                 if (Date.now() - parsed.timestamp < 4 * 60 * 60 * 1000) return parsed;
-            } catch (e) { return null; }
+            } catch { return null; }
         }
         return null;
     });
@@ -104,7 +108,8 @@ const Storefront: React.FC = () => {
     const { products } = useProducts();
     const { tasaBs, addGuestOrder } = useSettings();
     const { addSurvey } = useSurveys();
-    const { processOrderRewards, processWalletPayment } = useLoyalty();
+    // const { processOrderRewards } = useLoyalty(); // Not used
+    const { processSecureOrder } = useSecureCheckout();
     useCloudSync(); // Hook remains for its internal effects if any, but we don't need the return val
 
     // Toast Handlers
@@ -241,122 +246,104 @@ const Storefront: React.FC = () => {
         balanceUsed_usd: number = 0,
         isInternal: boolean = false,
         paymentStatus: 'pending' | 'paid' = 'paid',
-        paymentMethod: 'cash' | 'pago_movil' | 'zelle' | 'other' | 'whatsapp_link' = 'whatsapp_link'
+        paymentMethod: string = 'whatsapp_link'
     ) => {
-        let message = "¡Pedido recibido! Pronto nos pondremos en contacto.";
         let finalUser = currentUser;
 
-        // SEAMLESS REGISTRATION LOGIC
-        if (!currentUser && newRegistrationData && buyerName && deliveryInfo?.phone) {
-            const newUser: User = {
-                name: buyerName,
-                email: buyerEmail,
-                phone: normalizePhone(deliveryInfo.phone),
-                passwordHash: newRegistrationData.password,
-                referralCode: `RB-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
-                walletBalance_usd: WELCOME_BONUS_USD,
-                lifetimeSpending_usd: 0,
-                loyaltyTier: 'Bronze',
-                role: 'customer',
-                orders: [],
-                points: 50,
-            };
+        // 🛡️ SEAMLESS REGISTRATION (Phase 3: Secure RPC)
+        if (!currentUser && newRegistrationData && buyerName && deliveryInfo?.phone && supabase) {
+            const fullPhone = normalizePhone(deliveryInfo.phone);
+            const { data } = await supabase.rpc('rpc_register_user', {
+                p_phone: fullPhone,
+                p_name: buyerName,
+                p_password_hash: newRegistrationData.password,
+                p_email: buyerEmail || `${fullPhone}@rayburger.app`,
+                p_fingerprint: getDeviceFingerprint()
+            });
 
-            // Attempt to register
-            const success = await register(newUser);
-            if (success) {
-                finalUser = newUser; // Use the new user for rewards processing
-                showToast("🎉 ¡Cuenta de socio creada!");
+            if (data?.success) {
+                // Fetch the ground-truth user from cloud
+                const { data: userData } = await supabase
+                    .from('rb_users')
+                    .select('*')
+                    .eq('id', data.data)
+                    .single();
 
-                // Welcome WhatsApp if in Cashier Mode
-                if (isInternal) {
-                    const welcomeMsg = `🍔 *¡Bienvenido a Ray Burger Grill!* 🍔\n\n` +
-                        `Te hemos registrado como socio. ¡Ya tienes *50 puntos* de regalo por tu primera compra!\n\n` +
-                        `🔓 *TUS CREDENCIALES:*\n` +
-                        `👤 Usuario: ${deliveryInfo?.phone}\n` +
-                        `🔐 Clave: ${newRegistrationData.password}\n\n` +
-                        `🚀 Entra aquí para ver tus puntos y premios acumulados:\n` +
-                        `${window.location.origin}`;
-
-                    window.open(`https://wa.me/${normalizePhone(deliveryInfo?.phone || '')}?text=${encodeURIComponent(welcomeMsg)}`, '_blank');
+                if (userData) {
+                    finalUser = mapDbUserToApp(userData);
+                    await register(finalUser); // Updates local AuthContext state
+                    showToast("🎉 ¡Cuenta de socio creada y bono de $0.50 activo!");
                 }
             } else {
-                showToast("⚠️ No se pudo crear la cuenta, pero procesaremos el pedido.");
+                showToast(`⚠️ No se pudo crear cuenta: ${data?.error || 'Error desconocido'}`);
             }
         }
 
+        // 🛡️ SECURE CHECKOUT (Phase 3: Secure RPC)
         let currentOrder: Order | null = null;
+        const paymentType = balanceUsed_usd > 0 ? 'wallet' : 'whatsapp_link';
 
-        // If we have a user (either existing or newly registered)
-        if (finalUser) {
-            // Re-process rewards with the correct user context if needed, 
-            // but processOrderRewards likely uses the email to find the user in registeredUsers.
-            // Since register() updates registeredUsers asynchronously, we might need to rely on the fact 
-            // that 'registeredUsers' in this closure might be stale.
-            // HOWEVER, processOrderRewards takes 'registeredUsers' as arg.
-            // If we just registered, 'registeredUsers' state here might not have the new user yet 
-            // because React state updates in the next render cycle.
+        if (finalUser?.id) {
+            const checkoutResult = await processSecureOrder(
+                finalUser.id,
+                cart,
+                totalUsd + (deliveryInfo?.fee || 0),
+                paymentType,
+                finalUser.name,
+                deliveryInfo?.phone || finalUser.phone,
+                balanceUsed_usd
+            );
 
-            // WORKAROUND: Create a temporary updated list for the calculation
-            let currentUsersList = registeredUsers;
-            if (!currentUser && finalUser) {
-                currentUsersList = [...registeredUsers, finalUser];
-            }
-
-            // 🛡️ SECURITY CHECK: Server-Side Balance Validation
-            const buyerUser = currentUsersList.find(u => u.email === buyerEmail);
-            if (balanceUsed_usd > 0 && buyerUser) {
-                // If user is just registering (finalUser), they have 0 balance anyway, so this check strictly applies to existing users.
-                // Or if finalUser has a welcome bonus? No, welcome bonus is added AFTER.
-                // Only check if we are actually deducting.
-
-                // If ID is missing (new local user not synced?), we can't check server. 
-                // But for Security Phase, we assume users interacting with money rely on cloud.
-                if (buyerUser.id) {
-                    const secure = await processWalletPayment(buyerUser.id, balanceUsed_usd);
-                    if (!secure.success) {
-                        showToast(`⛔ ERROR DE SEGURIDAD: ${secure.error || 'Fondos insuficientes en la nube'}`);
-                        return; // ABORT TRANSACTION
-                    }
-                }
-            }
-
-            const resultWithNewUser = processOrderRewards(buyerEmail, cart, totalUsd, currentUsersList, deliveryInfo, balanceUsed_usd);
-
-            if (resultWithNewUser) {
-                const { updatedUsers } = resultWithNewUser;
-
-                // DEDUCT WALLET BALANCE IF USED
-                let finalUpdatedUsers = updatedUsers;
-                if (balanceUsed_usd > 0) {
-                    finalUpdatedUsers = updatedUsers.map(u => {
-                        if (u.email === buyerEmail) {
-                            return { ...u, walletBalance_usd: Math.max(0, u.walletBalance_usd - balanceUsed_usd) };
-                        }
-                        return u;
-                    });
-                    showToast(`💰 $${balanceUsed_usd.toFixed(2)} pagados con Billetera Ray`);
+            if (checkoutResult.success) {
+                if (checkoutResult.multiplierUsed && checkoutResult.multiplierUsed > 1) {
+                    showToast(`🚀 ¡MULTIPLICADOR ACTIVADO! Ganaste ${checkoutResult.multiplierUsed}x puntos.`);
                 }
 
-                updateUsers(finalUpdatedUsers);
-                const buyer = finalUpdatedUsers.find(u => u.email === buyerEmail);
-                if (buyer && buyer.orders.length > 0) {
-                    currentOrder = buyer.orders[buyer.orders.length - 1];
-                    // NEW: Metadata for internal order
-                    currentOrder.cashierMode = isInternal;
-                    currentOrder.paymentStatus = paymentStatus;
-                    currentOrder.paymentMethod = paymentMethod;
-                    currentOrder.status = isInternal ? 'delivered' : 'pending';
+                // Create the order object for the UI (Ground Truth comes from server, but we build UI representation)
+                currentOrder = {
+                    orderId: generateUuid(),
+                    timestamp: Date.now(),
+                    totalUsd: totalUsd + (deliveryInfo?.fee || 0),
+                    items: cart.map(item => ({
+                        name: item.name,
+                        quantity: item.quantity,
+                        price_usd: item.finalPrice_usd,
+                        selectedOptions: item.selectedOptions
+                    })),
+                    pointsEarned: 0, // 0 until approved
+                    pointsPotential: checkoutResult.pointsPotential || 0,
+                    status: isInternal ? 'delivered' : 'pending',
+                    deliveryMethod: deliveryInfo?.method || 'pickup',
+                    deliveryFee: deliveryInfo?.fee || 0,
+                    customerName: finalUser.name,
+                    customerPhone: finalUser.phone,
+                    balanceUsed_usd: balanceUsed_usd,
+                    cashierMode: isInternal,
+                    paymentStatus: paymentStatus,
+                    paymentMethod: paymentMethod as any,
+                    rewardsEarned_usd: 0
+                };
 
-                    if (!isInternal) {
-                        const link = generateWhatsAppLink(currentOrder, buyer, cart, tasaBs);
-                        window.open(link, '_blank');
-                    } else {
-                        showToast("✅ PEDIDO REGISTRADO EN EL PANEL");
-                        clearCart();
-                    }
+                // REFRESH PROFILE: Ensure local points and balance are correct after order
+                const { data: refreshedUser } = supabase ? await supabase
+                    .from('rb_users')
+                    .select('*')
+                    .eq('id', finalUser.id)
+                    .single() : { data: null };
+                if (refreshedUser) {
+                    const updatedAppUser = mapDbUserToApp(refreshedUser);
+                    updateUsers(registeredUsers.map(u => u.email === updatedAppUser.email ? updatedAppUser : u));
                 }
-                showToast(message + "\n🎁 Recompensas sumadas a tu Billetera.");
+
+                if (!isInternal && currentOrder) {
+                    const link = generateWhatsAppLink(currentOrder, finalUser, cart, tasaBs);
+                    window.open(link, '_blank');
+                } else if (isInternal) {
+                    showToast("✅ PEDIDO REGISTRADO EN EL PANEL");
+                }
+            } else {
+                showToast(`⛔ ERROR AL PROCESAR: ${checkoutResult.error}`);
+                return; // ABORT
             }
         } else {
             // GUEST FLOW (Standard)
@@ -376,15 +363,15 @@ const Storefront: React.FC = () => {
                 deliveryFee: deliveryInfo?.fee || 0,
                 customerName: buyerName || "Invitado",
                 customerPhone: deliveryInfo?.phone || "",
-                balanceUsed_usd: balanceUsed_usd,
+                balanceUsed_usd: 0,
                 cashierMode: isInternal,
                 paymentStatus: paymentStatus,
-                paymentMethod: paymentMethod,
+                paymentMethod: paymentMethod as any,
                 rewardsEarned_usd: 0
             };
             addGuestOrder(currentOrder);
 
-            if (!isInternal) {
+            if (!isInternal && currentOrder) {
                 const guestUser: User = {
                     name: buyerName || "Invitado", email: buyerEmail || "Sin email", phone: deliveryInfo?.phone ? `+58${normalizePhone(deliveryInfo.phone)}` : "",
                     passwordHash: "", referralCode: "", walletBalance_usd: 0, lifetimeSpending_usd: 0, loyaltyTier: "Bronze", role: 'customer', orders: [currentOrder],
@@ -392,11 +379,9 @@ const Storefront: React.FC = () => {
                 };
                 const link = generateWhatsAppLink(currentOrder, guestUser, cart, tasaBs);
                 window.open(link, '_blank');
-            } else {
+            } else if (isInternal) {
                 showToast("✅ VENTA (GUEST) REGISTRADA");
-                clearCart();
             }
-            showToast(message);
         }
 
         clearCart();
@@ -417,7 +402,7 @@ const Storefront: React.FC = () => {
             // Guest always sees it
             setTimeout(() => setIsSurveyModalOpen(true), 1500);
         }
-    }, [cart, totalUsd, registeredUsers, updateUsers, clearCart, closeCheckout, showToast, processOrderRewards, addGuestOrder, register, currentUser]);
+    }, [cart, totalUsd, registeredUsers, updateUsers, clearCart, closeCheckout, showToast, addGuestOrder, register, currentUser, processSecureOrder, tasaBs]);
 
     useEffect(() => {
         const timer = setTimeout(() => setIsLoadingProducts(false), 800);
@@ -763,7 +748,7 @@ const Storefront: React.FC = () => {
                 initialReferralCode={initialReferralCode}
             />
             <LoginModal isOpen={isLoginModalOpen} onClose={closeLogin} onLogin={handleLoginSubmit} onOpenRegister={openRegister} />
-            <ProductDetailModal isOpen={isProductDetailModalOpen} onClose={closeProductDetail} product={selectedProductForDetail} onAddToCart={handleAddToCart} />
+            <ProductDetailModal key={selectedProductForDetail?.id || 'none'} isOpen={isProductDetailModalOpen} onClose={closeProductDetail} product={selectedProductForDetail} onAddToCart={handleAddToCart} />
             <UserProfileModal
                 isOpen={isUserProfileModalOpen}
                 onClose={closeUserProfileModal}
@@ -782,7 +767,7 @@ const Storefront: React.FC = () => {
                         updateUsers(updatedList);
                         showToast("👑 ¡Larga vida al Rey! Eres Admin. (Recargando...)");
                         setTimeout(() => window.location.reload(), 500);
-                    } catch (e) {
+                    } catch {
                         showToast("Error al guardar privilegios.");
                     }
                 }}
@@ -798,7 +783,20 @@ const Storefront: React.FC = () => {
                 onShowToast={showToast}
             />
             {isToastVisible && <Toast message={toastMessage} onClose={closeToast} />}
-            <FloatingCart count={cart.length} totalUsd={totalUsd} onClick={openCart} />
+
+            {/* Mobile-First: Bottom Navigation (Replaces FloatingCart on mobile) */}
+            <BottomNavigation
+                cartItemCount={cart.length}
+                totalUsd={totalUsd}
+                onOpenCart={openCart}
+                onOpenCheckout={openCheckout}
+                isVisible={cart.length > 0}
+            />
+
+            {/* Desktop: Floating Cart (Hidden on mobile) */}
+            <div className="hidden lg:block">
+                <FloatingCart count={cart.length} totalUsd={totalUsd} onClick={openCart} />
+            </div>
             {activeOrder && <OrderStatusTracker order={activeOrder} onClose={() => { setActiveOrder(null); localStorage.removeItem('rayburger_active_order'); }} />}
             <InstallPrompt />
         </div>

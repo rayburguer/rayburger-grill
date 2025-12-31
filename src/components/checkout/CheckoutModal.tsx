@@ -137,6 +137,22 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
         }
     };
 
+    // --- CAJERO EXPRESS MODIFICATIONS ---
+    const [isAnonymous, setIsAnonymous] = useState(false);
+
+    // If anonymous, auto-fill dummy data
+    useEffect(() => {
+        if (isAnonymous) {
+            setBuyerName('Cliente Mostrador');
+            setBuyerPhone('0000000000');
+            setPhonePrefix('0412');
+        } else if (!currentUser) {
+            // Only clear if we are not logged in (don't clear existing user data)
+            setBuyerName('');
+            setBuyerPhone('');
+        }
+    }, [isAnonymous, currentUser]);
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Confirmación de Pedido">
             {/* PROGRESS INDICATOR */}
@@ -161,6 +177,21 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                             {isCashierMode ? '¿A quién le estamos vendiendo?' : '¿Cómo te contactamos?'}
                         </p>
                     </div>
+
+                    {/* ANONYMOUS CHECKBOX (Only visible if not logged in or in cashier mode) */}
+                    {(!currentUser || isCashierMode) && (
+                        <div className="flex justify-center mb-4">
+                            <label className="flex items-center gap-3 bg-gray-800 px-4 py-2 rounded-lg border border-gray-700 cursor-pointer hover:border-orange-500 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={isAnonymous}
+                                    onChange={(e) => setIsAnonymous(e.target.checked)}
+                                    className="w-5 h-5 accent-orange-500 rounded focus:ring-orange-500"
+                                />
+                                <span className="font-bold text-white text-sm">👤 Cliente Anónimo (Rápido)</span>
+                            </label>
+                        </div>
+                    )}
 
                     <div>
                         {currentUser ? (
@@ -188,7 +219,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                                         placeholder="Tu Nombre"
                                         value={buyerName}
                                         onChange={(e) => setBuyerName(e.target.value)}
-                                        className="w-full px-4 py-2 rounded-md bg-gray-800 text-white border border-gray-700 focus:border-orange-500 outline-none transition-colors"
+                                        className="w-full px-4 py-3.5 text-base rounded-lg bg-gray-800 text-white border border-gray-700 focus:border-orange-500 outline-none transition-colors"
                                     />
                                 </div>
                                 <div>
@@ -197,7 +228,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                                         <select
                                             value={phonePrefix}
                                             onChange={(e) => setPhonePrefix(e.target.value)}
-                                            className="bg-gray-800 text-white border border-gray-700 rounded-md px-2 py-2 focus:border-orange-500 outline-none transition-colors text-sm"
+                                            className="bg-gray-800 text-white border border-gray-700 rounded-lg px-3 py-3.5 text-base focus:border-orange-500 outline-none transition-colors"
                                         >
                                             {COUNTRY_PREFIXES.map(p => (
                                                 <option key={p.code} value={p.code}>{p.flag} +{p.code}</option>
@@ -208,7 +239,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                                             placeholder="Número (10 dígitos)"
                                             value={buyerPhone}
                                             onChange={(e) => setBuyerPhone(e.target.value.replace(/\D/g, ''))}
-                                            className="flex-1 px-4 py-2 rounded-md bg-gray-800 text-white border border-gray-700 focus:border-orange-500 outline-none transition-colors"
+                                            className="flex-1 px-4 py-3.5 text-base rounded-lg bg-gray-800 text-white border border-gray-700 focus:border-orange-500 outline-none transition-colors"
                                         />
                                     </div>
                                 </div>
@@ -241,7 +272,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                                         placeholder="Mínimo 4 caracteres"
                                         value={registerPassword}
                                         onChange={(e) => setRegisterPassword(e.target.value)}
-                                        className="w-full px-4 py-2 rounded-md bg-gray-900 text-white border border-orange-500/50 focus:border-orange-500 outline-none transition-colors"
+                                        className="w-full px-4 py-3.5 text-base rounded-lg bg-gray-900 text-white border border-orange-500/50 focus:border-orange-500 outline-none transition-colors"
                                     />
                                 </div>
                             )}
@@ -251,7 +282,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                     <button
                         onClick={() => setCurrentStep(2)}
                         disabled={!isStep1Valid || (isRegistering && registerPassword.length < 4)}
-                        className={`w-full py-4 rounded-full text-lg font-bold uppercase tracking-wide transition-all ${!isStep1Valid || (isRegistering && registerPassword.length < 4)
+                        className={`w-full min-h-[56px] py-4 rounded-2xl text-lg font-bold uppercase tracking-wide transition-all active:scale-95 ${!isStep1Valid || (isRegistering && registerPassword.length < 4)
                             ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                             : 'bg-orange-600 hover:bg-orange-500 text-white shadow-xl hover:-translate-y-1'
                             }`}
@@ -389,7 +420,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                     <div className="flex gap-3 pt-4">
                         <button
                             onClick={() => setCurrentStep(1)}
-                            className="px-6 py-4 rounded-full bg-gray-700 text-white font-bold hover:bg-gray-600 transition-colors"
+                            className="min-h-[56px] px-6 py-4 rounded-2xl bg-gray-700 text-white font-bold hover:bg-gray-600 transition-colors active:scale-95"
                         >
                             ← Atrás
                         </button>
@@ -397,7 +428,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, totalUsd
                         <button
                             onClick={handleConfirmOrder}
                             disabled={isConfirmButtonDisabled || (isRegistering && registerPassword.length < 4)}
-                            className={`flex-1 py-4 rounded-full text-lg font-bold uppercase transition-all flex items-center justify-center gap-2 ${isConfirmButtonDisabled || (isRegistering && registerPassword.length < 4)
+                            className={`flex-1 min-h-[56px] py-4 rounded-2xl text-lg font-bold uppercase transition-all flex items-center justify-center gap-2 active:scale-95 ${isConfirmButtonDisabled || (isRegistering && registerPassword.length < 4)
                                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                                 : 'bg-green-600 hover:bg-green-500 text-white shadow-xl hover:-translate-y-1'
                                 }`}

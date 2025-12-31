@@ -5,6 +5,7 @@ import { useLoyalty } from '../../hooks/useLoyalty';
 import { Search, Trash2, Clock, CheckCircle2, ChevronRight, DollarSign, PackageCheck } from 'lucide-react';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { useCloudSync } from '../../hooks/useCloudSync';
+import { useSecureCheckout } from '../../hooks/useSecureCheckout';
 
 interface OrderManagementProps {
     registeredUsers: User[];
@@ -19,7 +20,8 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     registeredUsers, updateUsers, guestOrders, updateGuestOrders, highlightOrderId, allProducts
 }) => {
     const { confirmOrderRewards, rejectOrder } = useLoyalty();
-    const { deleteFromCloud, replaceInCloud } = useCloudSync();
+    const { approveSecureOrder, rejectSecureOrder } = useSecureCheckout();
+    const { deleteFromCloud, pushToCloud } = useCloudSync();
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState<'pending' | 'received' | 'preparing' | 'shipped' | 'payment_confirmed' | 'approved' | 'rejected' | 'all'>('pending');
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['today', 'yesterday', 'thisWeek', 'older'])); // Default ALL OPEN // Default: only "today" expanded
@@ -40,9 +42,36 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         }
     }, [highlightOrderId]);
 
-    const allOrders = [...registeredUsers.flatMap(user => user.orders.map(order => ({ ...order, userName: order.customerName || user.name, userEmail: user.email, isGuest: false }))),
-    ...guestOrders.map(order => ({ ...order, userName: order.customerName || 'Invitado', userEmail: order.customerPhone || 'N/A', isGuest: true }))
-    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()); // Sort by newest first
+    // Unified order list with strict deduplication by orderId
+    const allOrders = (() => {
+        const rawList = [
+            ...registeredUsers.flatMap(user => user.orders.map(order => ({
+                ...order,
+                userName: order.customerName || user.name,
+                userEmail: user.email,
+                isGuest: false
+            }))),
+            ...guestOrders.map(order => ({
+                ...order,
+                userName: order.customerName || 'Invitado',
+                userEmail: order.customerPhone || 'N/A',
+                isGuest: true
+            }))
+        ];
+
+        // Remove duplicates ensuring we keep the most "advanced" status
+        const statusPriority: Record<string, number> = { 'approved': 4, 'delivered': 3, 'shipped': 2, 'preparing': 1, 'pending': 0 };
+        const dedupMap = new Map<string, typeof rawList[0]>();
+
+        rawList.forEach(order => {
+            const existing = dedupMap.get(order.orderId);
+            if (!existing || (statusPriority[order.status as string] || 0) > (statusPriority[existing.status as string] || 0)) {
+                dedupMap.set(order.orderId, order);
+            }
+        });
+
+        return Array.from(dedupMap.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    })();
 
     const filteredOrders = allOrders.filter(order => {
         const matchesSearch = searchTerm === '' ||
@@ -57,18 +86,50 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
         return matchesSearch && matchesFilter;
     });
 
-    const handleReject = (orderId: string, userEmail: string, isGuest: boolean) => {
+    const handlePurgeRejected = async () => {
+        if (!confirm('🗑️ ¿BORRAR DEFINITIVAMENTE todos los pedidos RECHAZADOS?\n\nEsta acción limpiará la base de datos de basura y no se puede deshacer.')) return;
+
+        const updatedRegistered = registeredUsers.map(user => ({
+            ...user,
+            orders: (user.orders || []).filter(o => o.status !== 'rejected')
+        }));
+
+        const rejectedGuestOrders = guestOrders.filter(o => o.status === 'rejected');
+        const updatedGuests = guestOrders.filter(o => o.status !== 'rejected');
+
+        // Batch updates to avoid multiple independent syncs if possible, 
+        // but here updateUsers and updateGuestOrders are separate props.
+        updateUsers(updatedRegistered);
+        updateGuestOrders(updatedGuests);
+
+        // FIX: Explicitly delete guest orders from cloud because upsert won't remove them.
+        if (rejectedGuestOrders.length > 0) {
+            rejectedGuestOrders.forEach(order => {
+                deleteFromCloud('rb_orders', order.orderId); // We don't await loop to prevent UI lag
+            });
+        }
+
+        onShowToast('✨ Basura eliminada correctamente');
+    };
+
+    const handleReject = async (orderId: string, userEmail: string, isGuest: boolean, dbId?: string) => {
         if (confirm(`¿Rechazar pedido de ${userEmail}?`)) {
             if (isGuest) {
                 const updated = guestOrders.map(o => o.orderId === orderId ? { ...o, status: 'rejected' as const } : o);
                 updateGuestOrders(updated);
-                // SYNC guest orders
                 const targetOrder = updated.find(o => o.orderId === orderId);
-                if (targetOrder) replaceInCloud('rb_orders', [{ ...targetOrder, id: targetOrder.orderId }]);
+                if (targetOrder) pushToCloud('rb_orders', [{ ...targetOrder, id: targetOrder.orderId }]);
             } else {
+                // 🛡️ SECURE REJECT (Phase 3)
+                if (dbId) {
+                    const result = await rejectSecureOrder(dbId);
+                    if (!result.success) {
+                        alert(`Error al rechazar en la nube: ${result.error}`);
+                        return;
+                    }
+                }
                 const updatedUsers = rejectOrder(orderId, userEmail, registeredUsers);
                 updateUsers(updatedUsers);
-                // NOTE: Registered user orders synced via rb_users
             }
         }
     };
@@ -103,19 +164,28 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar md:flex-wrap">
-                    {(['pending', 'approved', 'rejected', 'all'] as const).map(f => (
-                        <button
-                            key={f}
-                            onClick={() => setFilter(f)}
-                            className={`flex-none px-4 py-2 rounded-full text-sm font-semibold capitalize transition-colors whitespace-nowrap ${filter === f
-                                ? 'bg-orange-600 text-white'
-                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                }`}
-                        >
-                            {f === 'all' ? 'Todos' : f === 'pending' ? 'Pendientes' : f === 'approved' ? 'Aprobados' : 'Rechazados'}
-                        </button>
-                    ))}
+                <div className="flex flex-wrap gap-2 items-center">
+                    <button
+                        onClick={handlePurgeRejected}
+                        className="px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-500 text-[10px] font-black uppercase rounded-lg border border-red-500/20 transition-all flex items-center gap-1.5 mr-2"
+                        title="Borrar permanentemente todos los pedidos rechazados"
+                    >
+                        <Trash2 size={12} /> Limpiar Basura
+                    </button>
+                    <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar md:flex-wrap">
+                        {(['pending', 'approved', 'rejected', 'all'] as const).map(f => (
+                            <button
+                                key={f}
+                                onClick={() => setFilter(f)}
+                                className={`flex-none px-4 py-2 rounded-full text-sm font-semibold capitalize transition-colors whitespace-nowrap ${filter === f
+                                    ? 'bg-orange-600 text-white'
+                                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    }`}
+                            >
+                                {f === 'all' ? 'Todos' : f === 'pending' ? 'Pendientes' : f === 'approved' ? 'Aprobados' : 'Rechazados'}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
@@ -285,7 +355,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                 <div className="flex justify-between items-start mb-4">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-bold text-white text-lg">#{order.orderId.substring(0, 8).toUpperCase()}</h3>
+                            <h3 className="font-bold text-white text-lg">#{order.orderId.substring(0, 12).toUpperCase()}</h3>
                             <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${order.status === 'approved' || order.status === 'delivered' ? 'bg-green-900 text-green-400' :
                                 order.status === 'rejected' ? 'bg-red-900 text-red-400' :
                                     order.status === 'preparing' ? 'bg-orange-900 text-orange-400' :
@@ -317,12 +387,15 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                         )}
                     </div>
                     <div className="text-right">
-                        <p className="text-xl font-bold text-white">${order.totalUsd.toFixed(2)}</p>
-                        {!order.isGuest && order.status !== 'approved' && order.rewardsEarned_usd && (
-                            <p className="text-[10px] text-orange-400 font-bold uppercase tracking-tighter">+${order.rewardsEarned_usd.toFixed(2)} Reward</p>
+                        <p className="text-xl font-bold text-white">${(order.totalUsd || (order as any).total_usd || 0).toFixed(2)}</p>
+                        {order.status !== 'approved' && order.status !== 'rejected' && (order as any).pointsPotential > 0 && (
+                            <p className="text-[10px] text-orange-400 font-bold uppercase tracking-tighter">+{(order as any).pointsPotential} pts (Potencial)</p>
+                        )}
+                        {order.status === 'approved' && order.pointsEarned > 0 && (
+                            <p className="text-[10px] text-green-400 font-bold uppercase tracking-tighter">+{order.pointsEarned} pts (Abonados)</p>
                         )}
                         {order.balanceUsed_usd && order.balanceUsed_usd > 0 && (
-                            <p className="text-[10px] text-red-400 font-bold uppercase tracking-tighter">-${order.balanceUsed_usd.toFixed(2)} Wallet</p>
+                            <p className="text-[10px] text-red-400 font-bold uppercase tracking-tighter">-${(order.balanceUsed_usd || (order as any).balance_used_usd || 0).toFixed(2)} Wallet</p>
                         )}
                     </div>
                 </div>
@@ -354,7 +427,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                             <div key={idx} className="flex flex-col border-b border-gray-800 last:border-0 py-2">
                                 <div className="flex justify-between items-center">
                                     <span className="font-bold">{item.quantity}x {item.name}</span>
-                                    <span className="font-mono">${(item.price_usd * item.quantity).toFixed(2)}</span>
+                                    <span className="font-mono">${((item.price_usd || (item as any).price_total_usd || 0) * (item.quantity || 1)).toFixed(2)}</span>
                                 </div>
                                 {customizations && (
                                     <span className="text-[10px] text-orange-400 font-black tracking-widest mt-1">
@@ -431,8 +504,18 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                                                 updateGuestOrders(updated);
                                                 await replaceInCloud('rb_orders', [{ ...order, status: 'approved', paymentStatus: 'paid', id: order.orderId }]);
                                             } else {
+                                                // 🛡️ SECURE APPROVE (Phase 3)
+                                                // We try to approve in cloud first, using order.id (the UUID)
+                                                if (order.id) {
+                                                    const result = await approveSecureOrder(order.id);
+                                                    if (!result.success) {
+                                                        alert(`⚠️ ERROR EN NUBE: ${result.error || 'No se pudieron procesar las recompensas'}`);
+                                                        setIsProcessing(false);
+                                                        return;
+                                                    }
+                                                }
+
                                                 const updatedUsers = confirmOrderRewards(order.orderId, order.userEmail, registeredUsers);
-                                                // Ensure the order in user object also gets paymentStatus: 'paid'
                                                 const finalUsers = updatedUsers.map(u => u.email === order.userEmail ? {
                                                     ...u,
                                                     orders: u.orders.map(o => o.orderId === order.orderId ? { ...o, paymentStatus: 'paid' as const } : o)
@@ -460,7 +543,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                             {/* REJECT BUTTON */}
                             {(!order.status || order.status === 'pending' || order.status === 'preparing' || order.status === 'delivered') && (
                                 <button
-                                    onClick={() => handleReject(order.orderId, order.userEmail, order.isGuest)}
+                                    onClick={() => handleReject(order.orderId, order.userEmail, order.isGuest, order.id)}
                                     className="w-full py-2 text-gray-500 hover:text-red-400 text-xs font-bold uppercase tracking-widest transition-colors"
                                 >
                                     Rechazar / Cancelar

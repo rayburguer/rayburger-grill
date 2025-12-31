@@ -13,9 +13,16 @@ const InstallPrompt: React.FC = () => {
 
     useEffect(() => {
         const handler = (e: Event) => {
-            e.preventDefault();
-            setDeferredPrompt(e as BeforeInstallPromptEvent);
-            setShowPrompt(true);
+            const dismissed = localStorage.getItem('installPromptDismissed');
+            const dismissedTime = dismissed ? parseInt(dismissed) : 0;
+            const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+            const isRecentlyDismissed = (Date.now() - dismissedTime) < sevenDaysInMs;
+
+            if (!isRecentlyDismissed) {
+                e.preventDefault();
+                setDeferredPrompt(e as BeforeInstallPromptEvent);
+                setShowPrompt(true);
+            }
         };
 
         window.addEventListener('beforeinstallprompt', handler);
@@ -42,18 +49,6 @@ const InstallPrompt: React.FC = () => {
         // Store dismissal in localStorage to not show again for a while
         localStorage.setItem('installPromptDismissed', Date.now().toString());
     };
-
-    // Check if user dismissed recently (within 7 days)
-    useEffect(() => {
-        const dismissed = localStorage.getItem('installPromptDismissed');
-        if (dismissed) {
-            const dismissedTime = parseInt(dismissed);
-            const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-            if (Date.now() - dismissedTime < sevenDaysInMs) {
-                setShowPrompt(false);
-            }
-        }
-    }, []);
 
     return (
         <AnimatePresence>

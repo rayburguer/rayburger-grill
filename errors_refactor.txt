@@ -1,0 +1,4 @@
+﻿src/components/admin/AdminDashboard.tsx(2,23): error TS6133: 'Product' is declared but its value is never read.
+src/components/admin/AdminDashboard.tsx(7,17): error TS6133: 'Trash2' is declared but its value is never read.
+src/components/admin/AdminDashboard.tsx(8,23): error TS6133: 'RefreshCw' is declared but its value is never read.
+src/components/admin/MarketingManagement.tsx(15,35): error TS6133: 'allOrders' is declared but its value is never read.

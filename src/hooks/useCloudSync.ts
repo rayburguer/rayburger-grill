@@ -6,7 +6,7 @@ import { normalizePhone } from '../utils/helpers';
 const sanitizeData = (table: string, data: any[]) => {
     if (table === 'rb_products') {
         // Keep customizableOptions! It's vital for the ordering flow.
-        return data.map(({ highlight, ...rest }) => ({
+        return data.map(({ ...rest }) => ({
             ...rest
         }));
     }
@@ -58,65 +58,8 @@ export const useCloudSync = () => {
         }
     }, []);
 
-    const replaceInCloud = useCallback(async (table: string, data: any[]) => {
-        if (!supabase) return { error: 'Supabase client not initialized' };
-
-        setIsSyncing(true);
-        console.log(`🧹 NUCLEAR REPLACE starting for table: ${table}`);
-        try {
-            // 1. FETCH ALL IDs first (to be extra sure we know what to delete)
-            const { data: existingItems, error: fetchError } = await supabase
-                .from(table)
-                .select('id');
-
-            if (fetchError) {
-                console.error(`❌ Initial fetch failed for ${table}:`, fetchError);
-                throw fetchError;
-            }
-
-            if (existingItems && existingItems.length > 0) {
-                const idsToDelete = existingItems.map(item => item.id);
-                console.log(`🗑️ Found ${idsToDelete.length} items to delete. IDs:`, idsToDelete);
-
-                // 2. DELETE BY ID LIST
-                const { error: deleteError } = await supabase
-                    .from(table)
-                    .delete()
-                    .in('id', idsToDelete);
-
-                if (deleteError) {
-                    console.error(`❌ Targeted delete failed for ${table}:`, deleteError);
-                    throw deleteError;
-                }
-                console.log(`✅ Table ${table} successfully emptied.`);
-            } else {
-                console.log(`ℹ️ Table ${table} was already empty.`);
-            }
-
-            // 3. INSERT new data
-            const sanitizedData = sanitizeData(table, data);
-            console.log(`📥 Inserting ${sanitizedData.length} (sanitized) new items...`);
-            const { error: insertError } = await supabase
-                .from(table)
-                .insert(sanitizedData);
-
-            if (insertError) {
-                console.error(`❌ Insert failed for ${table}:`, insertError);
-                throw insertError;
-            }
-
-            const now = Date.now();
-            setLastSync(now);
-            localStorage.setItem('rayburger_last_cloud_sync', now.toString());
-            console.log(`✨ Table ${table} fully replaced.`);
-            return { error: null };
-        } catch (err: any) {
-            console.error(`💥 CRITICAL REPLACE ERROR:`, err);
-            return { error: err.message || JSON.stringify(err) };
-        } finally {
-            setIsSyncing(false);
-        }
-    }, []);
+    // replaceInCloud was DELETED to protect production data from accidental wipes.
+    // Use pushToCloud (upsert) instead.
 
     const fetchFromCloud = useCallback(async (table: string) => {
         if (!supabase) return { data: null, error: 'Supabase client not initialized' };
@@ -154,20 +97,15 @@ export const useCloudSync = () => {
             }
         }
 
-        // 2. Products
+        // 2. Products (DEPRECATED AUTO-PUSH)
+        // Products now only sync Cloud -> Local on pullFromCloud
+        // Push only happens explicitly in ProductManagement.tsx
+        /*
         const localProducts = localStorage.getItem('rayburger_products');
         if (localProducts) {
-            try {
-                const products = JSON.parse(localProducts);
-                if (products.length > 0) {
-                    // USE PUSH (UPSERT) INSTEAD OF REPLACE FOR AUTO-SYNC
-                    results.push(await pushToCloud('rb_products', products));
-                }
-            } catch (e) {
-                console.error("Error parsing products:", e);
-                results.push({ error: 'Parse error in products' });
-            }
+            // ...
         }
+        */
 
         // 3. Guest Orders
         const localGuestOrders = localStorage.getItem('rayburger_guest_orders');
@@ -205,7 +143,7 @@ export const useCloudSync = () => {
         }
 
         return results;
-    }, [pushToCloud, replaceInCloud]); // ✅ FIXED: Added replaceInCloud dependency
+    }, [pushToCloud]); // - FIXED: Removed replaceInCloud dependency
 
     const pullFromCloud = useCallback(async (options?: { forceCleanLocal?: boolean }) => {
         if (!supabase) return { error: 'Supabase client not initialized' };
@@ -243,6 +181,7 @@ export const useCloudSync = () => {
                     const mergedUsers = users
                         .filter((u: any) => u.role !== 'deleted') // 🛡️ FILTER SOFT DELETED
                         .map((remoteUser: any) => {
+                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
                             const { id, ...rest } = remoteUser;
                             const localUser = localUsersMap.get(rest.email) as User | undefined;
                             if (!localUser) return { ...rest, points: rest.points || 0, walletBalance_usd: rest.walletBalance_usd || 0, lifetimeSpending_usd: rest.lifetimeSpending_usd || 0 };
@@ -264,13 +203,22 @@ export const useCloudSync = () => {
                             const localOrders = localUser.orders || [];
                             const remoteOrderIds = new Set(remoteOrders.map((o: any) => o.orderId));
 
-                            const mergedOrders = remoteOrders.map((remoteOrder: any) => {
-                                const localOrder = localOrders.find((lo: any) => lo.orderId === remoteOrder.orderId);
-                                if (!localOrder) return remoteOrder;
-                                const localP = statusPriority[localOrder.status] || 0;
-                                const remoteP = statusPriority[remoteOrder.status] || 0;
-                                return localP > remoteP ? localOrder : remoteOrder;
-                            });
+                            const mergedOrders = remoteOrders
+                                .map((remoteOrder: any) => {
+                                    const localOrder = localOrders.find((lo: any) => lo.orderId === remoteOrder.orderId);
+                                    if (!localOrder) {
+                                        // 🛡️ SYNC PROTECTION: If it's an old finalized order missing locally, ignore it.
+                                        // This prevents "resurrecting" deleted junk from the cloud.
+                                        const isFinalized = ['approved', 'rejected', 'delivered'].includes(remoteOrder.status);
+                                        const isOld = (Date.now() - (remoteOrder.timestamp || 0)) > (24 * 60 * 60 * 1000); // 24 hours
+                                        if (isFinalized && isOld) return null;
+                                        return remoteOrder;
+                                    }
+                                    const localP = statusPriority[localOrder.status] || 0;
+                                    const remoteP = statusPriority[remoteOrder.status] || 0;
+                                    return localP > remoteP ? localOrder : remoteOrder;
+                                })
+                                .filter(Boolean); // Remove nulls from skipped old orders
 
                             // Resurrect recent local orders
                             const RECENT_WINDOW_MS = 15 * 60 * 1000;
@@ -334,7 +282,7 @@ export const useCloudSync = () => {
                     localStorage.setItem('rayburger_tasa', data.value.toString());
                     log(`Pulled Tasa: ${data.value}`);
                 }
-            } catch (e: any) {
+            } catch {
                 // Settings might not exist, ignore critical
             }
 
@@ -482,11 +430,23 @@ export const useCloudSync = () => {
                 let combinedPoints = master.points || 0;
                 let combinedWallet = master.walletBalance_usd || 0;
                 let combinedLifetime = master.lifetimeSpending_usd || 0;
-                let allOrders = [...(master.orders || [])];
+                const allOrders = [...(master.orders || [])];
 
                 // Profile merging to avoid losing names/info
                 const invalidNames = ['Cliente', 'Cliente Nuevo', 'Invitado', 'Sin Nombre'];
+                // Prioritize "Administrador Ray" or similar strings
+                const isPowerName = (n: string) => n.toLowerCase().includes('administrador') || n.toLowerCase().includes('ray');
+
                 let bestName = (master.name && !invalidNames.includes(master.name)) ? master.name : '';
+
+                // If victims have a better "Admin" name, steal it
+                victims.forEach(v => {
+                    if (v.name && isPowerName(v.name) && (!bestName || !isPowerName(bestName))) {
+                        bestName = v.name;
+                    }
+                });
+
+                if (!bestName) bestName = (master.name && !invalidNames.includes(master.name)) ? master.name : '';
                 let bestLastName = master.lastName || '';
                 let bestBirthDate = master.birthDate;
 
@@ -563,13 +523,12 @@ export const useCloudSync = () => {
             setIsSyncing(false);
             return { merged: 0, deleted: 0, error: e.message };
         }
-    }, [pullFromCloud]);
+    }, [pullFromCloud, migrateAllToCloud]);
 
     return {
         isSyncing,
         lastSync,
         pushToCloud,
-        replaceInCloud,
         fetchFromCloud,
         migrateAllToCloud,
         pullFromCloud,

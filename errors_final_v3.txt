@@ -1,0 +1,5 @@
+﻿src/components/admin/AdminDashboard.tsx(8,23): error TS6133: 'LogOut' is declared but its value is never read.
+src/components/admin/AdminDashboard.tsx(243,54): error TS2304: Cannot find name 'BarChart3'.
+src/components/admin/AdminDashboard.tsx(325,26): error TS2304: Cannot find name 'ProductManagement'.
+src/components/admin/AdminDashboard.tsx(364,26): error TS2304: Cannot find name 'CashRegisterReport'.
+src/components/admin/StatsManagement.tsx(17,68): error TS6133: 'surveys' is declared but its value is never read.

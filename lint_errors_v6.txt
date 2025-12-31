@@ -1,0 +1,29 @@
+﻿
+> rayburgergrill-app@1.0.0 lint
+> eslint . --report-unused-disable-directives --max-warnings 0
+
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\auth\RegisterModal.tsx
+  37:12  warning  'birthDate' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\context\AuthContext.tsx
+  384:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\useCloudSync.ts
+    9:28  warning  'highlight' is defined but never used. Allowed unused args must match /^_/u                                               @typescript-eslint/no-unused-vars
+  208:8   warning  React Hook useCallback has an unnecessary dependency: 'replaceInCloud'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+  246:37  warning  'id' is assigned a value but never used                                                                                   @typescript-eslint/no-unused-vars
+  337:22  warning  'e' is defined but never used                                                                                             @typescript-eslint/no-unused-vars
+  566:8   warning  React Hook useCallback has a missing dependency: 'migrateAllToCloud'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\useProducts.ts
+  134:26  warning  'err' is defined but never used                                                                                 @typescript-eslint/no-unused-vars
+  141:8   warning  React Hook useEffect has a missing dependency: 'pushToCloud'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\pages\client\Storefront.tsx
+   78:22  warning  'e' is defined but never used                                                                                                           @typescript-eslint/no-unused-vars
+  404:8   warning  React Hook useCallback has missing dependencies: 'processSecureOrder' and 'tasaBs'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  769:30  warning  'e' is defined but never used                                                                                                           @typescript-eslint/no-unused-vars
+
+Γ£û 12 problems (0 errors, 12 warnings)
+

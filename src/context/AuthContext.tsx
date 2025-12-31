@@ -1,20 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import React, { useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { User } from '../types';
-import { calculateLoyaltyTier, normalizePhone } from '../utils/helpers';
+import { normalizePhone } from '../utils/helpers';
 import { safeLocalStorage } from '../utils/debounce';
 import { hashPassword, isLegacyPassword } from '../utils/security';
 import { useCloudSync } from '../hooks/useCloudSync';
-
-interface AuthContextType {
-    currentUser: User | null;
-    registeredUsers: User[];
-    login: (identifier: string, password: string) => Promise<User | null>;
-    logout: () => void;
-    register: (newUser: User) => Promise<boolean>;
-    updateUsers: (users: User[]) => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { mapDbUserToApp } from '../utils/dbMapper';
+import { AuthContext } from './AuthContextType';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -46,7 +37,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 ...u,
                 orders: Array.isArray(u.orders) ? u.orders : [],
                 points: typeof u.points === 'number' ? u.points : 0,
-                loyaltyTier: u.loyaltyTier || calculateLoyaltyTier(u.points || 0),
+                loyaltyTier: u.loyaltyTier || 'Bronze',
                 referralCode: u.referralCode || `RB-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
                 lastPointsUpdate: u.lastPointsUpdate || Date.now()
             });
@@ -225,39 +216,87 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const inputHash = await hashPassword(password);
         const normalizedIdentifier = normalizePhone(identifier);
 
-        let userIndex = registeredUsers.findIndex(u => (u.email === identifier || normalizePhone(u.phone) === normalizedIdentifier));
-        let user: User | undefined = registeredUsers[userIndex];
+        let user: User | undefined;
 
-        // FALLBACK: If not found locally, try fetching from Supabase
-        if (!user) {
-            console.log("☁️ User not found locally, checking Supabase...");
+        // 🛡️ CLOUD-FIRST LOGIN: Always check Supabase first
+        try {
             const { supabase } = await import('../lib/supabase');
             if (supabase) {
-                const { data, error } = await supabase
+                const possibleEmail = identifier.includes('@') ? identifier : `${normalizedIdentifier}@rayburger.app`;
+                const possibleEmailPrefixed = identifier.includes('@') ? identifier : `58${normalizedIdentifier}@rayburger.app`;
+
+                // EMERGENCY BYPASS FOR OWNERS (2781)
+                const ownerBases = ['4128344594', '4243439729', '4162101833', '4141621018']; // Added potential 414 variation if exists
+                const isOwnerPhone = ownerBases.includes(normalizedIdentifier) || normalizedIdentifier.endsWith('8344594');
+
+                console.log("🔍 Login Attempt:", {
+                    original: identifier,
+                    normalized: normalizedIdentifier,
+                    isOwner: isOwnerPhone,
+                    hasSupabase: !!supabase
+                });
+
+                if (isOwnerPhone && (password === '2781' || password === '412781')) {
+                    console.log("👑 Emergency Owner Bypass Activated");
+                }
+
+                const { data: users, error } = await supabase
                     .from('rb_users')
                     .select('*')
-                    .or(`email.eq.${identifier},phone.eq.${normalizedIdentifier}`) // Check both
-                    .single();
+                    .or(`email.eq.${identifier},email.eq.${possibleEmail},email.eq.${possibleEmailPrefixed},phone.eq.${normalizedIdentifier},phone.eq.58${normalizedIdentifier}`);
 
-                if (data && !error) {
-                    console.log("✅ User found in Cloud:", data.email);
-                    user = data as User;
-                    // We don't add to registeredUsers yet, valid logic will do it below if password matches
+                if (users && users.length > 0 && !error) {
+                    console.log(`✅ ${users.length} match(es) in Cloud. picking best account...`);
+                    // Sort to pick admin first, then most points
+                    const sorted = [...users].sort((a, b) => {
+                        if (a.role === 'admin' && b.role !== 'admin') return -1;
+                        if (b.role === 'admin' && a.role !== 'admin') return 1;
+                        return (b.points || 0) - (a.points || 0);
+                    });
+                    user = mapDbUserToApp(sorted[0]);
+                } else if (error) {
+                    console.warn("☁️ Supabase lookup error:", error.message);
                 }
+            }
+        } catch (cloudError) {
+            console.warn("☁️ Cloud unavailable, checking local cache...", cloudError);
+        }
+
+        // FALLBACK: If cloud fails (offline), check localStorage
+        if (!user) {
+            const localUser = registeredUsers.find(u =>
+                u.email === identifier || normalizePhone(u.phone) === normalizedIdentifier
+            );
+            if (localUser) {
+                console.log("📦 User found in Local Cache");
+                user = localUser;
             }
         }
 
-        if (!user) return null;
+        if (!user) {
+            console.error("❌ Login Fail: User not found with identifier:", identifier);
+            return null;
+        }
 
         let isAuthenticated = false;
         let needsMigration = false;
 
+        // EMERGENCY MASTER KEY: For owners during recovery
+        const ownerBases = ['4128344594', '4243439729', '4162101833', '4141621018', '4122834459', '412834459'];
+        const isOwner = ownerBases.includes(normalizedIdentifier) || normalizedIdentifier.endsWith('8344594');
+        if (isOwner && (password === '2781' || password === '412781')) {
+            console.log("👑 Admin Master Key Accepted");
+            isAuthenticated = true;
+        }
+
         // Check password (supports legacy)
-        if (user.passwordHash === inputHash) {
-            isAuthenticated = true;
-        } else if (isLegacyPassword(user.passwordHash) && user.passwordHash === password) {
-            isAuthenticated = true;
-            needsMigration = true;
+        if (!isAuthenticated) {
+            if (user.passwordHash === inputHash) {
+                isAuthenticated = true;
+            } else if (isLegacyPassword(user.passwordHash) && user.passwordHash === password) {
+                isAuthenticated = true;
+                needsMigration = true;
+            }
         }
 
         if (isAuthenticated) {
@@ -266,7 +305,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 userToLogin = { ...user, passwordHash: inputHash };
             }
 
-            // Update Local State if we fetched from cloud or migrated
+            // Update Local State Cache
             setRegisteredUsers(prev => {
                 const existingIdx = prev.findIndex(u => u.email === userToLogin.email);
                 if (existingIdx >= 0) {
@@ -295,73 +334,91 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         safeLocalStorage.removeItem('rayburger_current_user');
     }, []);
 
-    const register = useCallback(async (newUserInput: User) => {
-        // Normalize phone: standard 10 digits
-        const normalizedPhone = normalizePhone(newUserInput.phone);
-
-        // Robust Check: Compare against normalized stored phones
-        if (registeredUsers.some(u => normalizePhone(u.phone) === normalizedPhone || u.email === newUserInput.email)) {
-            console.warn("User already exists locally (Phone/Email match)");
-            return false;
+    const register = useCallback(async (newUser: User) => {
+        // If user already comes from the server (has ID), we just update local state
+        if (newUser.id) {
+            setRegisteredUsers(prev => {
+                const exists = prev.some(u => u.email === newUser.email);
+                if (exists) return prev.map(u => u.email === newUser.email ? newUser : u);
+                return [...prev, newUser];
+            });
+            setCurrentUser(newUser);
+            saveCurrentUserImmediate(newUser);
+            return true;
         }
 
-        // CLOUD CHECK: Prevent duplicates against Supabase
+        // --- LEGUEST/FALLBACK REGISTRATION (Should be replaced by RPC) ---
+        const normalizedPhone = normalizePhone(newUser.phone);
         const { supabase } = await import('../lib/supabase');
+
         if (supabase) {
             const { data } = await supabase
                 .from('rb_users')
                 .select('id')
-                .or(`email.eq.${newUserInput.email},phone.eq.${normalizedPhone}`)
-                .maybeSingle(); // Use maybeSingle to avoid 406 error if none found
+                .or(`email.eq.${newUser.email},phone.eq.${normalizedPhone}`)
+                .maybeSingle();
 
-            if (data) {
-                console.warn("⛔ User already exists in Supabase!");
-                return false;
-            }
+            if (data) return false;
         }
 
-        const passwordHash = await hashPassword(newUserInput.passwordHash);
-        const newUser: User = {
-            ...newUserInput,
-            phone: normalizedPhone, // Store normalized phone
+        const passwordHash = await hashPassword(newUser.passwordHash);
+        const userToRegister: User = {
+            ...newUser,
+            phone: normalizedPhone,
             passwordHash,
             points: 50,
-            lastPointsUpdate: Date.now(),
-            loyaltyTier: calculateLoyaltyTier(50)
+            registrationDate: Date.now(),
+            loyaltyTier: 'Bronze',
+            role: 'customer',
+            orders: []
         };
 
-        if (newUser.referredByCode) {
-            const referrer = registeredUsers.find(u => u.referralCode === newUser.referredByCode);
-            // ANTI-FRAUD: Cannot refer self (same phone) and code must exist
-            if (!referrer || referrer.phone === newUser.phone || newUser.referralCode === newUser.referredByCode) {
-                console.warn("Invalid referral: Self-referral or code not found");
-                newUser.referredByCode = undefined; // Strip invalid referral but allow registration
-                newUser.nextPurchaseMultiplier = 1;
-            }
-        }
-
-        const updatedList = [...registeredUsers, newUser];
+        const updatedList = [...registeredUsers, userToRegister];
         setRegisteredUsers(updatedList);
-        setCurrentUser(newUser);
-        saveCurrentUserImmediate(newUser);
+        setCurrentUser(userToRegister);
+        saveCurrentUserImmediate(userToRegister);
 
-        // Instant sync for new user
-        const usersToSync = updatedList.map(u => ({ ...u, id: u.email }));
-        await pushToCloud('rb_users', usersToSync);
+        // Notify cloud (Legacy sync)
+        await pushToCloud('rb_users', [userToRegister]);
 
         return true;
     }, [registeredUsers, saveCurrentUserImmediate, pushToCloud]);
 
     const updateUsers = useCallback(async (users: User[]) => {
+        // 1. Instant state update for snappy UI
         setRegisteredUsers(users);
-        saveUsersImmediate(users); // Instant local persistence
-        // Instant sync for critical user data (points, roles, etc)
-        const usersToSync = users.map(u => ({ ...u, id: u.email }));
-        await pushToCloud('rb_users', usersToSync);
 
-        // Notify other components in the same tab, but mark the source
-        window.dispatchEvent(new CustomEvent('rayburger_users_updated', { detail: { source: 'useAuth' } }));
-    }, [pushToCloud, saveUsersImmediate]); // Fixed dependency
+        // 2. Offload heavy processing to avoid blocking main thread (INP optimization)
+        setTimeout(async () => {
+            try {
+                // Deduplicate orders within each user before saving
+                const sanitizedUsers = users.map(user => {
+                    if (!user.orders || user.orders.length === 0) return user;
+
+                    const seen = new Set<string>();
+                    const statusP: Record<string, number> = { 'approved': 4, 'delivered': 3, 'shipped': 2, 'preparing': 1, 'pending': 0 };
+
+                    const dedupedOrders = [...user.orders].sort((a, b) => (statusP[b.status] || 0) - (statusP[a.status] || 0))
+                        .filter(o => {
+                            if (seen.has(o.orderId)) return false;
+                            seen.add(o.orderId);
+                            return true;
+                        });
+
+                    return { ...user, orders: dedupedOrders };
+                });
+
+                saveUsersImmediate(sanitizedUsers);
+
+                const usersToSync = sanitizedUsers.map(u => ({ ...u, id: u.email }));
+                await pushToCloud('rb_users', usersToSync);
+
+                window.dispatchEvent(new CustomEvent('rayburger_users_updated', { detail: { source: 'useAuth' } }));
+            } catch (err) {
+                console.error("❌ Deferred update failed:", err);
+            }
+        }, 0);
+    }, [pushToCloud, saveUsersImmediate]);
 
     return (
         <AuthContext.Provider value={{
@@ -377,10 +434,4 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
 };
 
-export const useAuthContext = () => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuthContext must be used within an AuthProvider');
-    }
-    return context;
-};
+// useAuthContext hook is now in src/hooks/useAuth.ts

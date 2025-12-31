@@ -1,0 +1,252 @@
+﻿
+> rayburgergrill-app@1.0.0 lint
+> eslint . --report-unused-disable-directives --max-warnings 0
+
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\index.tsx
+  31:16  error  'registration' is never reassigned. Use 'const' instead  prefer-const
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\admin\AdminBI.tsx
+  40:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\admin\AdminDashboard.tsx
+  58:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\admin\CustomerManagement.tsx
+  35:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\admin\MarketingManagement.tsx
+  17:17  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\admin\MarketingManagement.tsx:17:17
+  15 |     registeredUsers, updateUsers, yesterdayTotal, todayTotal, onShowToast
+  16 | }) => {
+> 17 |     const now = Date.now();
+     |                 ^^^^^^^^^^ Cannot call impure function
+  18 |     return (
+  19 |         <div className="space-y-6 animate-in fade-in duration-500">
+  20 |             {/* FOUNDER CAMPAIGN SECTION */}  react-hooks/purity
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\admin\OrderManagement.tsx
+  329:98   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  330:121  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  357:112  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  390:127  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  391:195  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  412:127  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  413:195  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\admin\StatsManagement.tsx
+   11:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   12:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  316:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\auth\RegisterModal.tsx
+  161:8  warning  React Hook useCallback has unnecessary dependencies: 'birthDate' and 'lastName'. Either exclude them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\layout\Footer.tsx
+  19:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\loyalty\RewardUnlockModal.tsx
+  16:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\loyalty\RewardUnlockModal.tsx:16:13
+  14 |     useEffect(() => {
+  15 |         if (reward) {
+> 16 |             setShowConfetti(true);
+     |             ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  17 |             const timer = setTimeout(() => setShowConfetti(false), 5000);
+  18 |             return () => clearTimeout(timer);
+  19 |         }  react-hooks/set-state-in-effect
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\loyalty\RewardsProgressBar.tsx
+  11:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  12:73  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\loyalty\RouletteModal.tsx
+   20:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   66:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  112:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\products\ProductDetailModal.tsx
+  1:27  warning  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\recommendations\RecommendationSection.tsx
+    8:18  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+    9:17  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+   60:50  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `favoriteProductNames`, but the source dependencies were [allProducts]. Inferred different dependency than source.
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\recommendations\RecommendationSection.tsx:60:50
+  58 |
+  59 |     // Get random products based on mood
+> 60 |     const getRandomRecommendations = useCallback((mood: string) => {
+     |                                                  ^^^^^^^^^^^^^^^^^^^
+> 61 |         if (mood === 'familiar' && favoriteProductNames) {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 62 |             return allProducts.filter(p => favoriteProductNames.includes(p.name) && p.isAvailable !== false).slice(0, 3);
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 73 |         return shuffleArray(availableProducts).slice(0, 3);
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 74 |     }, [allProducts]);
+     | ^^^^^^ Could not preserve existing manual memoization
+  75 |
+  76 |     // Handle mood selection with random recommendations
+  77 |     const handleMoodSelect = useCallback((mood: string) => {  react-hooks/preserve-manual-memoization
+   74:8   warning  React Hook useCallback has a missing dependency: 'favoriteProductNames'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 react-hooks/exhaustive-deps
+  107:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\recommendations\RecommendationSection.tsx:107:13
+  105 |         if (allProducts.length > 0 && recommendations.length === 0) {
+  106 |             const availableProducts = allProducts.filter(p => p.isAvailable !== false);
+> 107 |             setRecommendations(shuffleArray(availableProducts).slice(0, 3));
+      |             ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  108 |         }
+  109 |     }, [allProducts]);
+  110 |                                                                                                                                                                                                                                                                                                 react-hooks/set-state-in-effect
+  109:8   warning  React Hook useEffect has a missing dependency: 'recommendations.length'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 react-hooks/exhaustive-deps
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\voting\IngredientVoting.tsx
+  1:27  warning  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\context\AuthContext.tsx
+   46:37  warning  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  174:47  warning  Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  384:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\__tests__\useCloudSync.test.ts
+  36:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  41:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  83:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  85:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\useAdmin.ts
+  11:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\useAdmin.ts:11:13
+   9 |         // --- SECURE ACCESS: Admin status is STRICTLY tied to the authenticated user's role ---
+  10 |         if (currentUser?.role === 'admin') {
+> 11 |             setIsAdmin(true);
+     |             ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  12 |         } else {
+  13 |             // Memory check: If the user entered the correct master password in this session
+  14 |             // we allow them to stay admin as a 'POS Terminal' mode,   react-hooks/set-state-in-effect
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\useCloudSync.ts
+    6:44   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+    9:28   warning  'highlight' is defined but never used. Allowed unused args must match /^_/u                                               @typescript-eslint/no-unused-vars
+   23:65   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+   61:68   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  113:23   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  146:58   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  176:65   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  208:8    warning  React Hook useCallback has an unnecessary dependency: 'replaceInCloud'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+  229:25   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  240:91   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  244:37   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  245:43   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  246:37   warning  'id' is assigned a value but never used                                                                                   @typescript-eslint/no-unused-vars
+  265:81   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  267:81   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  268:74   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  278:62   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  297:103  warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  297:134  warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  304:63   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  310:55   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  311:45   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  325:25   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  337:22   warning  'e' is defined but never used                                                                                             @typescript-eslint/no-unused-vars
+  337:25   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  353:25   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  367:25   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  422:23   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  446:42   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  447:31   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  494:64   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  507:46   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  561:21   warning  Unexpected any. Specify a different type                                                                                  @typescript-eslint/no-explicit-any
+  566:8    warning  React Hook useCallback has a missing dependency: 'migrateAllToCloud'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\useGemini.ts
+  11:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\useLoyalty.ts
+  207:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\useProducts.ts
+  134:26  warning  'err' is defined but never used                                                                                 @typescript-eslint/no-unused-vars
+  141:8   warning  React Hook useEffect has a missing dependency: 'pushToCloud'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\useSecureCheckout.ts
+  60:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  74:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  88:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\useSuggestions.ts
+  10:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\useSuggestions.ts:10:13
+   8 |         const saved = localStorage.getItem('rayburger_suggestions');
+   9 |         if (saved) {
+> 10 |             setSuggestions(JSON.parse(saved));
+     |             ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  11 |         }
+  12 |     }, []);
+  13 |  react-hooks/set-state-in-effect
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\pages\client\Storefront.tsx
+   78:22  warning  'e' is defined but never used                                                                                                           @typescript-eslint/no-unused-vars
+  322:53  warning  Unexpected any. Specify a different type                                                                                                @typescript-eslint/no-explicit-any
+  368:49  warning  Unexpected any. Specify a different type                                                                                                @typescript-eslint/no-explicit-any
+  404:8   warning  React Hook useCallback has missing dependencies: 'processSecureOrder' and 'tasaBs'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  411:53  warning  Unexpected any. Specify a different type                                                                                                @typescript-eslint/no-explicit-any
+  769:30  warning  'e' is defined but never used                                                                                                           @typescript-eslint/no-unused-vars
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\utils\confetti.ts
+  32:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\utils\dbMapper.ts
+   6:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  36:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  37:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\utils\debounce.ts
+   6:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   6:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  11:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  11:56  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  40:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  40:56  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+Γ£û 97 problems (7 errors, 90 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+

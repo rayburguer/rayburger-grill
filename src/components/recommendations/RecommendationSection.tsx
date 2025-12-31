@@ -71,7 +71,7 @@ const RecommendationSection: React.FC<RecommendationSectionProps> = ({ onShowToa
 
         // Shuffle and take 3 random products
         return shuffleArray(availableProducts).slice(0, 3);
-    }, [allProducts]);
+    }, [allProducts, favoriteProductNames]);
 
     // Handle mood selection with random recommendations
     const handleMoodSelect = useCallback((mood: string) => {
@@ -106,7 +106,7 @@ const RecommendationSection: React.FC<RecommendationSectionProps> = ({ onShowToa
             const availableProducts = allProducts.filter(p => p.isAvailable !== false);
             setRecommendations(shuffleArray(availableProducts).slice(0, 3));
         }
-    }, [allProducts]);
+    }, [allProducts, recommendations.length]);
 
     return (
         <section className="w-full max-w-5xl mb-12 p-8 bg-gray-900/50 backdrop-blur-xl rounded-[2.5rem] border border-orange-500/20 shadow-2xl relative overflow-hidden">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Flame, Plus } from 'lucide-react';
 import { VOTING_INGREDIENTS } from '../../data/votingOptions';
@@ -8,17 +8,11 @@ import { useAuth } from '../../hooks/useAuth';
 
 export const IngredientVoting: React.FC = () => {
     const [selectedIngredients, setSelectedIngredients] = useState<string[]>([]);
-    const [hasVoted, setHasVoted] = useState(false);
+    const [hasVoted, setHasVoted] = useState(() => !!safeLocalStorage.getItem('rayburger_has_voted_v1'));
     const { pushToCloud } = useCloudSync();
     const { currentUser } = useAuth();
-
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
-
-    useEffect(() => {
-        const voted = safeLocalStorage.getItem('rayburger_has_voted_v1');
-        if (voted) setHasVoted(true);
-    }, []);
 
     const toggleIngredient = (id: string) => {
         if (selectedIngredients.includes(id)) {

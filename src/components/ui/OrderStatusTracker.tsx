@@ -37,7 +37,7 @@ const OrderStatusTracker: React.FC<OrderStatusTrackerProps> = ({ order, onClose 
                             </div>
                             <div>
                                 <h4 className="text-white font-bold text-sm">Estado de tu Pedido</h4>
-                                <p className="text-gray-400 text-[10px] uppercase tracking-wider">ID: #{order.orderId.substring(0, 8)}</p>
+                                <p className="text-gray-400 text-[10px] uppercase tracking-wider">ID: #{order.orderId.substring(0, 12).toUpperCase()}</p>
                             </div>
                         </div>
                         <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full transition-colors">

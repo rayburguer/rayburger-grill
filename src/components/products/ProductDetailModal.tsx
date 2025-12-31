@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Minus } from 'lucide-react';
 import Modal from '../ui/Modal';
 import { Product } from '../../types';
@@ -13,18 +13,13 @@ interface ProductDetailModalProps {
 
 const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ isOpen, onClose, product, onAddToCart }) => {
     const [quantity, setQuantity] = useState<number>(1);
-    const [selectedOptions, setSelectedOptions] = useState<{ [optionId: string]: boolean }>({});
-
-    useEffect(() => {
-        if (product && isOpen) {
-            setQuantity(1);
-            const initialOptions: { [optionId: string]: boolean } = {};
-            product.customizableOptions?.forEach(option => {
-                initialOptions[option.id] = option.defaultIncluded;
-            });
-            setSelectedOptions(initialOptions);
-        }
-    }, [product, isOpen]);
+    const [selectedOptions, setSelectedOptions] = useState<{ [optionId: string]: boolean }>(() => {
+        const initialOptions: { [optionId: string]: boolean } = {};
+        product?.customizableOptions?.forEach(option => {
+            initialOptions[option.id] = option.defaultIncluded;
+        });
+        return initialOptions;
+    });
 
     const currentPrice = useMemo(() => {
         if (!product) return 0;

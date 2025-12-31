@@ -46,6 +46,7 @@ export interface Order {
     selectedOptions?: { [optionId: string]: boolean };
   }[];
   pointsEarned: number;
+  pointsPotential?: number;
   rewardsEarned_usd: number;
   referrerRewardsEarned_usd?: number;
   status: 'pending' | 'received' | 'preparing' | 'shipped' | 'payment_confirmed' | 'delivered' | 'rejected' | 'approved';
@@ -81,6 +82,7 @@ export interface User {
   birthDate?: string;
   registrationDate?: number;
   registeredVia?: 'web' | 'pos';
+  fingerprint?: string;
   orders: Order[];
   points: number;
   referralStats?: {

@@ -1,0 +1,10 @@
+﻿
+> rayburgergrill-app@1.0.0 lint
+> eslint . --report-unused-disable-directives --max-warnings 0
+
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\hooks\__tests__\useServerSafety.test.ts
+  1:32  warning  'vi' is defined but never used  @typescript-eslint/no-unused-vars
+
+Γ£û 1 problem (0 errors, 1 warning)
+

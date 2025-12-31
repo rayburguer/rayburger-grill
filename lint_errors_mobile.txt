@@ -1,0 +1,11 @@
+﻿
+> rayburgergrill-app@1.0.0 lint
+> eslint . --report-unused-disable-directives --max-warnings 0
+
+
+C:\Users\raimundo\OneDrive\Escritorio\pruebaloca\src\components\ui\ImageUploader.tsx
+   2:39  warning  'ImageIcon' is defined but never used                                                                             @typescript-eslint/no-unused-vars
+  90:8   warning  React Hook useCallback has a missing dependency: 'uploadImage'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+Γ£û 2 problems (0 errors, 2 warnings)
+
