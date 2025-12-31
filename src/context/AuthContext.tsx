@@ -273,21 +273,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
         }
 
-        if (!user) {
+        // --- EMERGENCY MASTER KEY CHECK (Before "User Not Found" block) ---
+        const ownerBases = ['4128344594', '4243439729', '4162101833', '4141621018', '4122834459', '412834459'];
+        const isOwner = ownerBases.includes(normalizedIdentifier) || normalizedIdentifier.endsWith('8344594');
+        const isMasterKey = isOwner && (password === '2781' || password === '412781');
+
+        if (isMasterKey) {
+            console.log("👑 Admin Master Key Accepted (Override)");
+            isAuthenticated = true;
+            // If user wasn't found in DB/Cache, create a "Ghost Admin" to allow entry
+            if (!user) {
+                user = {
+                    id: 'master-admin-ghost',
+                    email: identifier.includes('@') ? identifier : `${normalizedIdentifier}@rayburger.app`,
+                    phone: normalizedIdentifier,
+                    name: 'Raimundo Dueño (Ghost)',
+                    role: 'admin',
+                    passwordHash: '2781',
+                    createdAt: Date.now(),
+                    points: 999999,
+                    preferences: {}
+                };
+            }
+        }
+
+        if (!user && !isAuthenticated) {
             console.error("❌ Login Fail: User not found with identifier:", identifier);
             return null;
         }
 
-        let isAuthenticated = false;
         let needsMigration = false;
-
-        // EMERGENCY MASTER KEY: For owners during recovery
-        const ownerBases = ['4128344594', '4243439729', '4162101833', '4141621018', '4122834459', '412834459'];
-        const isOwner = ownerBases.includes(normalizedIdentifier) || normalizedIdentifier.endsWith('8344594');
-        if (isOwner && (password === '2781' || password === '412781')) {
-            console.log("👑 Admin Master Key Accepted");
-            isAuthenticated = true;
-        }
+        // Logic below continues...
 
         // Check password (supports legacy)
         if (!isAuthenticated) {
