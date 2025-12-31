@@ -217,6 +217,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const normalizedIdentifier = normalizePhone(identifier);
 
         let user: User | undefined;
+        let isAuthenticated = false;
 
         // 🛡️ CLOUD-FIRST LOGIN: Always check Supabase first
         try {
