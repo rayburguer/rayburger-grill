@@ -292,7 +292,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     role: 'admin',
                     passwordHash: '2781',
                     points: 999999,
-                    preferences: {},
                     walletBalance_usd: 0,
                     lifetimeSpending_usd: 0,
                     orders: [],

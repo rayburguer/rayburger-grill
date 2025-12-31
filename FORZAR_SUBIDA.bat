@@ -1,23 +1,22 @@
 @echo off
-color 0B
+color 0D
 echo ==============================================
-echo   REPARANDO Y SUBIENDO (FIX v2.1)
+echo   PARA VER EL ERROR REAL (FIX v2.2)
 echo ==============================================
 echo.
-echo 1. Guardando cambios de emergencia...
+echo 1. Guardando modo diagnostico...
 git add .
-git commit -m "Fix: AuthContext compilation errors and Ghost Admin types"
+git commit -m "Fix: Remove preferences prop and expose error message"
 
 echo.
-echo 2. Conectando con GitHub (rayburguer)...
-echo.
+echo 2. Subiendo a rayburger-grill...
 git push origin main
 
 echo.
 echo ==============================================
-echo PROCESO FINALIZADO.
+echo LISTO.
 echo.
-echo Si ves "main -> main" o "Everything up-to-date",
-echo espera 2 minutos y prueba entrar.
+echo Cuando entres esta vez, si falla, el cuadro rojo
+echo te dira EXACTAMENTE que esta mal.
 echo ==============================================
 pause

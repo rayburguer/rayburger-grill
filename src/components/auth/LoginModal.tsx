@@ -53,9 +53,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, onOpe
             if (!success) {
                 setError('Credenciales incorrectas. Verifica tu teléfono/email y contraseña.');
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Login error", err);
-            setError('Ocurrió un error al iniciar sesión.');
+            setError(`Error: ${err.message || 'Error desconocido'}`);
         } finally {
             setIsLoading(false);
         }
@@ -67,7 +67,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, onOpe
     }, [onClose, onOpenRegister]);
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Inicia Sesión (v2.0)">
+        <Modal isOpen={isOpen} onClose={onClose} title="Inicia Sesión (v2.2)">
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <label htmlFor="loginIdentifier" className="block text-white text-lg font-semibold mb-2">Teléfono (o Email)</label>
