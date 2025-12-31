@@ -280,6 +280,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         if (isMasterKey) {
             console.log("👑 Admin Master Key Accepted (Override)");
+            alert(' Llave Maestra (v2.0) Detectada. Creando Usuario Fantasma...');
             isAuthenticated = true;
             // If user wasn't found in DB/Cache, create a "Ghost Admin" to allow entry
             if (!user) {
@@ -290,10 +291,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     name: 'Raimundo Dueño (Ghost)',
                     role: 'admin',
                     passwordHash: '2781',
-                    createdAt: Date.now(),
                     points: 999999,
-                    preferences: {}
-                };
+                    preferences: {},
+                    walletBalance_usd: 0,
+                    lifetimeSpending_usd: 0,
+                    orders: [],
+                    loyaltyTier: 'Diamond',
+                    referralCode: 'GOLDEN-TICKET'
+                } as User;
             }
         }
 

@@ -67,7 +67,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, onOpe
     }, [onClose, onOpenRegister]);
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Inicia Sesión">
+        <Modal isOpen={isOpen} onClose={onClose} title="Inicia Sesión (v2.0)">
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <label htmlFor="loginIdentifier" className="block text-white text-lg font-semibold mb-2">Teléfono (o Email)</label>
